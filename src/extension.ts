@@ -11,8 +11,28 @@ export function activate(context: vscode.ExtensionContext): void {
   const store = new SessionStore();
   const watcher = new TranscriptWatcher(store, log);
 
+  // Sessions switched off in the sidebar persist across restarts.
+  const EXCLUDED_KEY = 'excludedSessions';
+  store.setIncluded(context.globalState.get<string[]>(EXCLUDED_KEY, []), false);
+
   const sessionsTree = new SessionsTreeProvider(store);
   const conflictsTree = new ConflictsTreeProvider(store);
+  const sessionsView = vscode.window.createTreeView('claudeMultisession.sessions', {
+    treeDataProvider: sessionsTree,
+    // A workspace checkbox should toggle exactly its sessions, not the file rows below them.
+    manageCheckboxStateManually: true,
+  });
+  sessionsView.onDidChangeCheckboxState((e) => {
+    for (const [node, state] of e.items) {
+      const included = state === vscode.TreeItemCheckboxState.Checked;
+      if (node.type === 'session') {
+        store.setIncluded([node.session.id], included);
+      } else if (node.type === 'workspace') {
+        store.setIncluded(node.sessions.map((s) => s.id), included);
+      }
+    }
+    void context.globalState.update(EXCLUDED_KEY, [...store.excluded]);
+  });
   const conflictsView = vscode.window.createTreeView('claudeMultisession.conflicts', { treeDataProvider: conflictsTree });
 
   // Badge on the activity bar icon = number of shared files.
@@ -32,7 +52,7 @@ export function activate(context: vscode.ExtensionContext): void {
     sessionsTree,
     conflictsTree,
     conflictsView,
-    vscode.window.registerTreeDataProvider('claudeMultisession.sessions', sessionsTree),
+    sessionsView,
     vscode.commands.registerCommand('claudeMultisession.openGraph', () => GraphPanel.show(context, store)),
     vscode.commands.registerCommand('claudeMultisession.refresh', () => watcher.rescan()),
     // Tree click: resume in Claude Code if the session belongs to this window's workspace, else show the transcript.

@@ -80,6 +80,7 @@ export class GraphPanel implements vscode.Disposable {
     <select id="workspace" title="Filter by workspace (session cwd)">
       <option value="">All workspaces</option>
     </select>
+    <label title="Color files touched by 2+ sessions (red: written by 2+, orange: read+write)"><input type="checkbox" id="showConflicts" checked> Conflicts</label>
     <label><input type="checkbox" id="showReads" checked> Show reads</label>
     <label><input type="checkbox" id="sharedOnly"> Shared files only</label>
     <label><input type="checkbox" id="activeOnly"> Active sessions only</label>
@@ -91,8 +92,8 @@ export class GraphPanel implements vscode.Disposable {
   <div id="legend">
     <span class="sw session"></span>session
     <span class="sw file"></span>file
-    <span class="sw rw"></span>read+write by 2+
-    <span class="sw ww"></span>written by 2+
+    <span class="conflict-legend"><span class="sw rw"></span>read+write by 2+</span>
+    <span class="conflict-legend"><span class="sw ww"></span>written by 2+</span>
     <span class="ln edit"></span>edit
     <span class="ln read"></span>read
   </div>

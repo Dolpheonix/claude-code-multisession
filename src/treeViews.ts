@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { conflictLevel, FileInfo, fileKey, Session, SessionStore } from './sessionStore';
-import { isActive, isInWorkspace, sessionLabel, visibleSessions } from './viewModel';
+import { includedSessions, isActive, isInWorkspace, sessionLabel, visibleSessions } from './viewModel';
 
 export type Node =
   | { type: 'workspace'; key: string; cwd?: string; sessions: Session[] }
@@ -68,7 +68,7 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
           reads += t.reads;
           edits += t.edits;
         }
-        return [s.id, sessionLabel(s), s.cwd, isActive(s), s.files.size, reads, edits].join('\u0001');
+        return [s.id, sessionLabel(s), s.cwd, isActive(s), this.store.isIncluded(s.id), s.files.size, reads, edits].join('\u0001');
       })
       .join('\u0002');
   }
@@ -151,6 +151,13 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
       active ? new vscode.ThemeColor('charts.green') : undefined,
     );
     item.contextValue = current ? 'workspace.current' : 'workspace';
+    // Toggles every session in the group; checked while any of them is included.
+    item.checkboxState = {
+      state: node.sessions.some((s) => this.store.isIncluded(s.id))
+        ? vscode.TreeItemCheckboxState.Checked
+        : vscode.TreeItemCheckboxState.Unchecked,
+      tooltip: 'Include these sessions in the graph and conflicts',
+    };
     return item;
   }
 
@@ -173,6 +180,11 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
     // Sessions of this window's workspace can be resumed in Claude Code; others open the raw transcript.
     const resumable = isInWorkspace(s, true);
     item.contextValue = resumable ? 'session.workspace' : 'session';
+    const included = this.store.isIncluded(s.id);
+    item.checkboxState = {
+      state: included ? vscode.TreeItemCheckboxState.Checked : vscode.TreeItemCheckboxState.Unchecked,
+      tooltip: included ? 'Included in the graph and conflicts' : 'Excluded from the graph and conflicts',
+    };
     item.command = {
       command: 'claudeMultisession.openSession',
       title: resumable ? 'Open in Claude Code' : 'Open transcript',
@@ -203,14 +215,20 @@ export class ConflictsTreeProvider extends GatedTreeProvider<FileInfo> {
       .join('\u0002');
   }
 
+  /**
+   * Conflicts among included sessions only: each file's touches are narrowed to visible, switched-on
+   * sessions and its level recomputed, so turning a finished session off clears the conflicts it caused.
+   */
   getChildren(node?: FileInfo): FileInfo[] {
     if (node) {
       return [];
     }
-    const visible = new Set(visibleSessions(this.store).map((s) => s.id));
-    return this.store
-      .conflicts()
-      .filter((f) => [...f.touches.keys()].filter((id) => visible.has(id)).length >= 2);
+    const included = new Set(includedSessions(this.store).map((s) => s.id));
+    const rank = (f: FileInfo) => (conflictLevel(f) === 'writeWrite' ? 0 : 1);
+    return [...this.store.files.values()]
+      .map((f) => ({ ...f, touches: new Map([...f.touches].filter(([sid]) => included.has(sid))) }))
+      .filter((f) => conflictLevel(f) !== 'none')
+      .sort((a, b) => rank(a) - rank(b));
   }
 
   getTreeItem(f: FileInfo): vscode.TreeItem {

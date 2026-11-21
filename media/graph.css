@@ -102,6 +102,10 @@ header button:hover {
   margin-right: -4px;
 }
 
+/* Same 6px swatch→text spacing the flex gap gives the other legend items. */
+.conflict-legend .sw { margin-right: 6px; }
+body.no-conflicts .conflict-legend { display: none; }
+
 .sw.session { background: #4e79a7; border-radius: 2px; }
 .sw.file { border: 1.5px solid var(--vscode-editorWidget-border); border-radius: 50%; }
 .sw.rw { background: var(--vscode-charts-orange); border-radius: 50%; }

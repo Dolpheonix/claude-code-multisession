@@ -79,9 +79,36 @@ export class SessionStore {
   readonly sessions = new Map<string, Session>();
   readonly files = new Map<string, FileInfo>();
 
+  /**
+   * Sessions the user switched off in the sidebar: kept in the Sessions view (unchecked) but left
+   * out of the graph and conflict detection, e.g. finished work that no longer matters for merging.
+   */
+  readonly excluded = new Set<string>();
+
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChange = this._onDidChange.event;
   private changeTimer: NodeJS.Timeout | undefined;
+
+  isIncluded(sessionId: string): boolean {
+    return !this.excluded.has(sessionId);
+  }
+
+  setIncluded(sessionIds: Iterable<string>, included: boolean): void {
+    let changed = false;
+    for (const id of sessionIds) {
+      if (included === this.excluded.has(id)) {
+        if (included) {
+          this.excluded.delete(id);
+        } else {
+          this.excluded.add(id);
+        }
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.fireChanged();
+    }
+  }
 
   clear(): void {
     this.sessions.clear();
@@ -114,12 +141,6 @@ export class SessionStore {
       }
     }
     this.fireChanged();
-  }
-
-  conflicts(): FileInfo[] {
-    return [...this.files.values()]
-      .filter((f) => conflictLevel(f) !== 'none')
-      .sort((a, b) => (conflictLevel(a) === 'writeWrite' ? -1 : 1) - (conflictLevel(b) === 'writeWrite' ? -1 : 1));
   }
 
   private applyMeta(s: Session, ev: Extract<TranscriptEvent, { kind: 'meta' }>, isMain: boolean): void {

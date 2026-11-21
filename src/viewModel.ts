@@ -69,8 +69,13 @@ export function visibleSessions(store: SessionStore): Session[] {
     .sort((a, b) => b.lastTs - a.lastTs);
 }
 
+/** Visible sessions the user hasn't switched off: what the graph and conflict detection consider. */
+export function includedSessions(store: SessionStore): Session[] {
+  return visibleSessions(store).filter((s) => store.isIncluded(s.id));
+}
+
 export function buildGraphState(store: SessionStore): GraphState {
-  const sessions = visibleSessions(store);
+  const sessions = includedSessions(store);
   const ids = new Set(sessions.map((s) => s.id));
   const files: GraphFile[] = [];
   const edges: GraphEdge[] = [];

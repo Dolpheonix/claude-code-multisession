@@ -108,7 +108,7 @@
   const $ = (id) => /** @type {HTMLInputElement} */ (document.getElementById(id));
   /** @type {any} */
   const saved = vscode.getState() ?? {};
-  const opts = { showReads: true, sharedOnly: false, activeOnly: false, ...saved.opts };
+  const opts = { showConflicts: true, showReads: true, sharedOnly: false, activeOnly: false, ...saved.opts };
   /** Selected workspace key ('' = all). */
   let workspace = typeof saved.workspace === 'string' ? saved.workspace : '';
   /** @type {any} */
@@ -228,7 +228,7 @@
       ...files.map((f) => ({
         group: 'nodes',
         data: { id: 'f:' + f.key, path: f.path, label: f.label },
-        classes: 'file ' + f.conflict,
+        classes: 'file ' + (opts.showConflicts ? f.conflict : 'none'),
       })),
       ...edges.map((e) => ({
         group: 'edges',
@@ -270,7 +270,10 @@
     const ww = files.filter((f) => f.conflict === 'writeWrite').length;
     const rw = files.filter((f) => f.conflict === 'readWrite').length;
     document.getElementById('stats').textContent =
-      `${sessions.length} sessions · ${files.length} files · ` + `${ww} written by 2+ · ${rw} read+write by 2+`;
+      `${sessions.length} sessions · ${files.length} files` +
+      (opts.showConflicts ? ` · ${ww} written by 2+ · ${rw} read+write by 2+` : '');
+    // Hide the conflict legend entries while conflicts are off.
+    document.body.classList.toggle('no-conflicts', !opts.showConflicts);
   }
 
   /**
