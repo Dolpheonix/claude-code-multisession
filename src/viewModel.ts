@@ -102,9 +102,11 @@ export function isInWorkspace(s: Session, exact = false): boolean {
 export function visibleSessions(store: SessionStore): Session[] {
   const scope = cfg().get<string>('scope', 'all');
   const cutoff = Date.now() - cfg().get<number>('lookbackHours', 24) * 3600_000;
+  const hideArchived = !cfg().get<boolean>('showArchived', false);
 
   return [...store.sessions.values()]
     .filter((s) => s.lastTs >= cutoff)
+    .filter((s) => !hideArchived || !store.archived.has(s.id))
     .filter((s) => scope !== 'workspace' || isInWorkspace(s))
     .sort((a, b) => b.lastTs - a.lastTs);
 }

@@ -33,6 +33,7 @@ Claude Code 자체의 임시 폴더(`<tmp>/claude/…`, 세션별 `scratchpad/` 
 | [src/treeViews.ts](src/treeViews.ts) | 사이드바: Sessions, Conflicts 뷰 |
 | [src/graphPanel.ts](src/graphPanel.ts) + [media/graph.js](media/graph.js) | Cytoscape 그래프 웹뷰 |
 | [src/claudeCode.ts](src/claudeCode.ts) | Claude Code 확장에서 세션 열기 |
+| [src/claudeArchive.ts](src/claudeArchive.ts) | Claude Code에서 보관한 세션 목록 읽기 |
 | [src/repoRoot.ts](src/repoRoot.ts) | 표시용 경로를 위해 파일이 속한 git 저장소 루트 찾기(캐시) |
 | [src/permissions.ts](src/permissions.ts) | 허가 요청 hook: 로컬 수신기, 공용 이벤트 파일, hook 설치/제거 |
 | [src/windowBridge.ts](src/windowBridge.ts) | 다른 VS Code 창에 세션 열기 요청 |
@@ -44,6 +45,7 @@ Claude Code 자체의 임시 폴더(`<tmp>/claude/…`, 세션별 `scratchpad/` 
 
 - **Sessions 뷰**: 세션을 워크스페이스(세션을 시작한 폴더)별로 묶고, 세션마다 건드린 파일을 보여 줍니다(✎ 수정, 👁 읽기). 이 창에 열린 폴더가 먼저 나옵니다. `claudeMultisession.groupByWorkspace`로 묶기를 끌 수 있습니다. 허가 요청을 기다리는 세션에는 🔔([허가 요청](#허가-요청)), 아직 지식을 정리하지 않은 세션에는 ⚑([프로젝트 지식 이어가기](#프로젝트-지식-이어가기))가 붙습니다.
   - 세션마다 체크박스가 있습니다. 체크를 풀면 목록에는 남지만 **그래프와 충돌 검사에서 빠집니다.** 남은 브랜치들을 머지할 때의 영향을 볼 때, 이미 끝난 작업을 빼는 용도입니다. 워크스페이스 그룹의 체크박스는 그 안의 세션 전체를 켜고 끕니다. 뺀 세션 목록은 재시작해도 유지됩니다.
+- **보관한 세션 숨기기**: Claude Code에서 보관(Archive session)한 세션은 Sessions 뷰, 그래프, 충돌, 스킬 사용 횟수에서 모두 빠집니다. `claudeMultisession.showArchived`를 켜면 다시 보이고 `archived` 표시가 붙습니다. Claude Code가 이 상태를 공식 API로 내놓지 않아서 내부 저장소를 읽습니다([Claude Code 연동](#claude-code-연동) 참고).
 - **Conflicts 뷰**: 포함된 세션 2개 이상이 건드린 파일. 활동 표시줄 아이콘에 개수 배지가 붙습니다.
 - **Skills 뷰**: 디스크에 있는 스킬과 커스텀 명령, 사용 횟수([스킬](#스킬) 참고)
 - **그래프**: 왼쪽에서 오른쪽으로 그립니다. 세션은 왼쪽 열, 파일은 오른쪽 열에 놓이고, 각 세션의 파일은 그 세션 옆에 모입니다. 여러 세션이 함께 건드린 파일은 해당 세션 그룹들 사이에 놓입니다.
@@ -61,7 +63,7 @@ Claude Code 자체의 임시 폴더(`<tmp>/claude/…`, 세션별 `scratchpad/` 
 
 브랜치마다 세션을 새로 열면, 새 세션은 이전 세션이 알게 된 것을 모른 채 시작합니다. 지식도 코드와 같은 길로 보내는 게 좋습니다.
 
-- **브랜치에서 CLAUDE.md에 적습니다.** Claude Code는 세션을 시작할 때마다 `CLAUDE.md`를 읽습니다. 세션이 자기 브랜치에서 이 파일을 고쳐 커밋하면, 지식은 머지와 함께 `main`에 들어가고 PR에서 함께 검토됩니다. 두 브랜치가 서로 다르게 적으면 git 충돌로 드러나고, 버린 브랜치의 내용은 남지 않습니다.
+- **브랜치에서 CLAUDE.md에 적습니다.** Claude Code는 세션을 시작할 때마다 `CLAUDE.md`를 읽습니다. 세션이 자기 브랜치에서 이 파일을 고쳐 커밋하면, 지식은 머지와 함께 대상 브랜치(`main`, `product` 등 그 브랜치가 합쳐지는 곳)에 들어가고 PR에서 함께 검토됩니다. 두 브랜치가 서로 다르게 적으면 git 충돌로 드러나고, 버린 브랜치의 내용은 남지 않습니다.
 - **이 브랜치에만 해당하는 내용**(왜 바꿨는지, 남은 일)은 커밋 메시지와 PR 설명에 씁니다. 개인 취향은 저장소가 아니라 `~/.claude/CLAUDE.md`에 둡니다.
 - git worktree를 쓰면, Claude Code의 자동 메모리(`~/.claude/projects/<경로>/memory/`)가 worktree 경로마다 따로 생깁니다. 저장소 안의 CLAUDE.md는 그렇지 않습니다.
 
@@ -71,7 +73,7 @@ Claude Code 자체의 임시 폴더(`<tmp>/claude/…`, 세션별 `scratchpad/` 
 - **Wrap Up Session**(세션 오른쪽 클릭): 이 창이나 그 폴더를 연 창에서 세션을 이어서 열고, 입력창에 `claudeMultisession.wrapUpPrompt`(기본값 `/wrap-up`)를 넣어 둡니다. Claude Code 2.1.x는 이 문장을 보내지 않고 입력창에만 넣습니다. 그 폴더를 연 창이 없으면 문장을 클립보드에 복사합니다.
 - **Conflicts**: 여러 세션이 고친 지식 파일에는 `📘 knowledge`가 붙습니다. 그 세션들이 적은 내용이 브랜치를 머지할 때 충돌할 수 있다는 뜻입니다.
 
-[/wrap-up 스킬](.claude/skills/wrap-up/SKILL.md)은 이 저장소에서 관리하고 확장에 함께 들어 있습니다. 세션에서 알게 된 것을 CLAUDE.md에 넣을 것, 이 브랜치에만 해당하는 메모, 개인 취향으로 나눈 뒤 CLAUDE.md를 고치고, 커밋하기 전에 묻습니다. `disable-model-invocation`이 켜져 있어서 사용자가 직접 입력할 때만 실행됩니다.
+[/wrap-up 스킬](.claude/skills/wrap-up/SKILL.md)은 이 저장소에서 관리하고 확장에 함께 들어 있습니다. 먼저 이 브랜치가 합쳐질 대상 브랜치를 정합니다. `main`으로 가정하지 않고, 사용자가 말한 브랜치, CLAUDE.md에 적힌 브랜치, git 기록으로 추정한 브랜치(사용자에게 확인) 순서로 정합니다. 그다음 세션에서 알게 된 것을 CLAUDE.md에 넣을 것, 이 브랜치에만 해당하는 메모, 개인 취향으로 나눈 뒤 CLAUDE.md를 고치고, 커밋하기 전에 묻습니다. `disable-model-invocation`이 켜져 있어서 사용자가 직접 입력할 때만 실행됩니다.
 
 **Claude Multi-Session: Install /wrap-up Skill Globally**를 실행하면 `~/.claude/skills/wrap-up/`에 복사되어, 어느 폴더에서 시작한 세션이든 쓸 수 있습니다. 저장소의 스킬을 고친 뒤에는 다시 실행하세요. 바뀐 게 없으면 "up to date"라고 알리고, 전역 사본을 직접 고쳐 둔 경우에는 덮어쓰기 전에 묻습니다. 스킬이 설치되어 있지 않으면 **Wrap Up Session**이 설치를 권합니다.
 
@@ -123,6 +125,8 @@ Claude Code 자체의 임시 폴더(`<tmp>/claude/…`, 세션별 `scratchpad/` 
 
 Claude Code는 세션을 시작한 폴더 기준으로 관리하므로, cwd가 워크스페이스 폴더와 *정확히 같은* 세션만 이 창에서 이어서 열 수 있습니다. 하위 폴더에서 시작한 세션은 그 하위 폴더를 연 창이 필요합니다.
 
+보관한 세션 목록은 Claude Code 확장이 VS Code 확장 저장소(`globalState`)의 `hiddenSessionIds`에 저장합니다. 실제 위치는 `<사용자 폴더>/globalStorage/state.vscdb`(SQLite)의 `ItemTable` 테이블, `Anthropic.claude-code` 행입니다. 확장은 VS Code에 내장된 `node:sqlite`로 이 값을 10초마다 읽기만 합니다. VS Code가 이 파일을 조금 늦게 쓰므로, 보관한 뒤 수십 초 안에 반영됩니다. Claude Code가 세션 폴더에 `archived.json`을 남기는 경우도 함께 읽습니다. 읽지 못하면 출력 채널에 `[archive]` 줄을 한 번 남기고, 보관한 세션도 그대로 보여 줍니다. 공식 API가 아니므로 Claude Code 업데이트로 깨질 수 있습니다.
+
 확장 API로는 다른 창을 보거나 메시지를 보낼 수 없어서, 창끼리 확장의 전역 저장소 폴더를 통해 주고받습니다. 각 창은 10초마다 자기 워크스페이스 폴더를 `windows/<id>.json`에 기록합니다. 세션을 넘길 때는 대상 창이 주기적으로 확인하는 `requests/<target-id>/`에 요청을 쓰고, 세션 cwd에 대해 `vscode.openFolder`를 새 창 모드로 실행합니다. 그 폴더가 이미 열려 있으므로 VS Code는 새 창 대신 기존 창으로 전환합니다. 같은 폴더를 연 창이 여럿이면 가장 최근에 포커스된 창이 받습니다. 15초가 지난 요청은 버리고, 기록이 35초 넘게 갱신되지 않은 창(비정상 종료 등)은 무시합니다.
 
 ## 설정
@@ -137,6 +141,7 @@ Claude Code는 세션을 시작한 폴더 기준으로 관리하므로, cwd가 �
 | `claudeMultisession.notifyPermission` | `true` | 세션이 허가 요청을 기다리기 시작하면 알림 |
 | `claudeMultisession.knowledgeFiles` | `["CLAUDE.md"]` | 세션이 알게 된 것을 적는 파일(파일 이름 또는 경로 끝부분). 파일은 고쳤지만 이 파일들은 고치지 않은 세션은 "not wrapped up"으로 표시 |
 | `claudeMultisession.wrapUpPrompt` | `/wrap-up` | **Wrap Up Session**이 Claude Code 입력창에 넣는 문장 |
+| `claudeMultisession.showArchived` | `false` | Claude Code에서 보관한 세션도 표시 |
 | `claudeMultisession.scope` | `all` | `workspace`로 두면 트리와 그래프에 cwd가 열린 폴더(또는 그 하위)인 세션만 표시 |
 
 ## 개발

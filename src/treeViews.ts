@@ -87,6 +87,7 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
           this.store.isIncluded(s.id),
           waiting ? `${waiting.since}:${waiting.summary}` : '',
           knowledgeStatus(s),
+          this.store.archived.has(s.id),
           s.files.size,
           reads,
           edits,
@@ -205,7 +206,8 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
     }
     const knowledge = knowledgeStatus(s);
     const wrap = knowledge === 'missing' ? ' · ⚑ not wrapped up' : '';
-    item.description = `${folder}${status} · ${s.files.size} files${wrap} · ${timeAgo(s.lastTs)}`;
+    const archived = this.store.archived.has(s.id) ? ' · archived' : ''; // only visible with showArchived
+    item.description = `${folder}${status} · ${s.files.size} files${wrap}${archived} · ${timeAgo(s.lastTs)}`;
     const md = new vscode.MarkdownString(`**${sessionLabel(s)}**\n\n- id: \`${s.id}\`\n- cwd: \`${s.cwd ?? '?'}\``);
     if (waiting) {
       md.appendMarkdown(`\n\n**🔔 Waiting for permission** (${timeAgo(waiting.since)}): `);

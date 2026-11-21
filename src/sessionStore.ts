@@ -153,6 +153,18 @@ export class SessionStore {
     }
   }
 
+  /** Sessions archived in Claude Code (see claudeArchive.ts); hidden unless `showArchived` is on. */
+  readonly archived = new Set<string>();
+
+  setArchived(ids: Set<string>): void {
+    if (ids.size === this.archived.size && [...ids].every((id) => this.archived.has(id))) {
+      return;
+    }
+    this.archived.clear();
+    ids.forEach((id) => this.archived.add(id));
+    this.fireChanged();
+  }
+
   clear(): void {
     this.sessions.clear();
     this.files.clear();

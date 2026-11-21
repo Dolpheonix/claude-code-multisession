@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { ClaudeArchive } from './claudeArchive';
 import { openInClaudeCode } from './claudeCode';
 import { GraphPanel } from './graphPanel';
 import { installHook, isHookInstalled, PermissionEvents, uninstallHook } from './permissions';
@@ -20,6 +21,9 @@ export function activate(context: vscode.ExtensionContext): void {
   const log = vscode.window.createOutputChannel('Claude Multi-Session');
   const store = new SessionStore();
   const watcher = new TranscriptWatcher(store, log);
+
+  // Sessions archived in Claude Code are hidden (claudeMultisession.showArchived to show them).
+  const archive = new ClaudeArchive(context.globalStorageUri.fsPath, store, log);
 
   // Sessions switched off in the sidebar persist across restarts.
   const EXCLUDED_KEY = 'excludedSessions';
@@ -146,6 +150,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     log,
+    archive,
     permissions,
     bridge,
     skillsTree,
@@ -244,6 +249,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   watcher.start();
+  archive.start();
 }
 
 /**

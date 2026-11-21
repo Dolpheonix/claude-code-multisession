@@ -102,6 +102,11 @@
           "default": "/wrap-up",
           "description": "Prompt put in the Claude Code input box by 'Wrap Up Session'."
         },
+        "claudeMultisession.showArchived": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show sessions archived in Claude Code (hidden by default). Read from Claude Code's internal state, so it may stop working after a Claude Code update."
+        },
         "claudeMultisession.scope": {
           "type": "string",
           "enum": ["all", "workspace"],
