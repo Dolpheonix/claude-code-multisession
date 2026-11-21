@@ -8,8 +8,6 @@ Claude Code writes one transcript per session to `~/.claude/projects/<project>/<
 
 Each session's **cwd** is the directory it started in: the first `cwd` of its main transcript. Later lines can carry a different cwd after the session `cd`s elsewhere, and those are ignored. Git-Bash style paths (`/c/Users/...`) are normalized to native Windows paths.
 
-Each session's **branch** is the last `gitBranch` recorded. Claude Code writes `"HEAD"` outside a git repo (and on a detached HEAD) and `""` when unknown, so both are treated as "no branch".
-
 The transcript format is not a public API. All format knowledge lives in [src/parser.ts](src/parser.ts).
 
 | File | Role |
@@ -27,11 +25,11 @@ The transcript format is not a public API. All format knowledge lives in [src/pa
 - **Sessions view**: sessions grouped by workspace (the folder each session started in), each listing the files it touched (✎ edits, 👁 reads). Folders open in this window are listed first. Turn grouping off with `claudeMultisession.groupByWorkspace`.
 - **Conflicts view**: files touched by 2+ sessions, with a badge count on the activity bar
 - **Graph**: a left-to-right layout. Sessions are in the left column and files in the right, and each session's files are grouped next to it. Files shared by several sessions are placed between those sessions' groups.
-  - session label: title, then `cwd folder · branch`
+  - session label: title, then the cwd folder
   - red file: written by 2+ sessions
   - orange file: written by one session, read by another
   - solid arrows are edits, dashed lines are reads
-  - hover to highlight a node's neighbors and see a tooltip (full cwd and branch for sessions, full path for files)
+  - hover to highlight a node's neighbors and see a tooltip (full cwd for sessions, full path for files)
   - filters: workspace dropdown (by session cwd), show reads, shared files only, active sessions only. Filter choices are kept when the panel is reopened.
 - **Open in Claude Code**: clicking a session in the tree or the graph resumes it in the Claude Code extension when the session's cwd is exactly a workspace folder of the current window. Other sessions open their raw transcript instead. Right-click a session for **Open in Claude Code** / **Open Transcript**.
 
@@ -72,6 +70,5 @@ Then press **F5** in VS Code to launch an Extension Development Host. Open the *
 
 - Hook integration (`PreToolUse` / `PostToolUse` → local HTTP server) for real-time events through a documented interface, and to warn or block when another session is editing the same file
 - Worktree-aware path mapping, so the same repo-relative file is matched across git worktrees
-- Warn when sessions in the same repo work on different branches
 - Line-range overlap detection from `Edit.old_string`
 - Timeline view

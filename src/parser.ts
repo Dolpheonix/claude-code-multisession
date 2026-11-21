@@ -8,7 +8,7 @@
 export type AccessKind = 'read' | 'edit';
 
 export type TranscriptEvent =
-  | { kind: 'meta'; sessionId: string; cwd?: string; gitBranch?: string; timestamp?: number }
+  | { kind: 'meta'; sessionId: string; cwd?: string; timestamp?: number }
   | { kind: 'title'; sessionId: string; title: string }
   | {
       kind: 'file';
@@ -30,14 +30,6 @@ const EDIT_TOOLS: Record<string, string> = {
 const READ_TOOLS: Record<string, string> = {
   Read: 'file_path',
 };
-
-/**
- * Claude Code records `gitBranch` on every line, but writes "HEAD" outside a git repo
- * (and for detached HEAD) and "" when unknown. Neither is a real branch name.
- */
-function branchName(v: unknown): string | undefined {
-  return typeof v === 'string' && v !== '' && v !== 'HEAD' ? v : undefined;
-}
 
 export function parseLine(line: string): TranscriptEvent[] {
   let rec: any;
@@ -66,7 +58,6 @@ export function parseLine(line: string): TranscriptEvent[] {
       kind: 'meta',
       sessionId,
       cwd,
-      gitBranch: branchName(rec.gitBranch),
       timestamp: Number.isNaN(timestamp) ? undefined : timestamp,
     });
   }

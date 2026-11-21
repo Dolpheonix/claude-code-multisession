@@ -164,7 +164,7 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
     const folder = !groupByWorkspace() && s.title && s.cwd ? `${path.basename(s.cwd)} · ` : '';
     item.description = `${folder}${active ? 'active' : 'idle'} · ${s.files.size} files · ${timeAgo(s.lastTs)}`;
     item.tooltip = new vscode.MarkdownString(
-      `**${sessionLabel(s)}**\n\n- id: \`${s.id}\`\n- cwd: \`${s.cwd ?? '?'}\`\n- branch: \`${s.gitBranch ?? '?'}\``,
+      `**${sessionLabel(s)}**\n\n- id: \`${s.id}\`\n- cwd: \`${s.cwd ?? '?'}\``,
     );
     item.iconPath = new vscode.ThemeIcon(
       active ? 'circle-filled' : 'circle-outline',

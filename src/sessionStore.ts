@@ -15,7 +15,6 @@ export interface Session {
   cwd?: string;
   /** Whether `cwd` came from the main transcript (vs. a subagent transcript read first). */
   cwdFromMain?: boolean;
-  gitBranch?: string;
   transcriptPath?: string;
   firstTs: number;
   lastTs: number;
@@ -129,9 +128,6 @@ export class SessionStore {
     if (ev.cwd && (!s.cwd || (isMain && !s.cwdFromMain))) {
       s.cwd = toNativePath(ev.cwd);
       s.cwdFromMain = isMain;
-    }
-    if (ev.gitBranch) {
-      s.gitBranch = ev.gitBranch;
     }
     if (ev.timestamp) {
       this.touchTime(s, ev.timestamp);

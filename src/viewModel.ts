@@ -6,7 +6,6 @@ export interface GraphSession {
   id: string;
   label: string;
   cwd?: string;
-  branch?: string;
   active: boolean;
   lastTs: number;
 }
@@ -99,7 +98,6 @@ export function buildGraphState(store: SessionStore): GraphState {
       id: s.id,
       label: sessionLabel(s),
       cwd: s.cwd,
-      branch: s.gitBranch,
       active: isActive(s),
       lastTs: s.lastTs,
     })),

@@ -50,7 +50,7 @@
           // Sessions sit in the left column: label on their left.
           'text-halign': 'left',
           'text-margin-x': -6,
-          // Two lines: title, then "cwd folder · branch".
+          // Two lines: title, then cwd folder.
           'text-wrap': 'wrap',
           'text-max-width': 220,
           'text-justification': 'right',
@@ -194,10 +194,10 @@
   const trunc = (str, n) => (str.length > n ? str.slice(0, n - 1) + '…' : str);
   const baseName = (p) => (p ? p.split(/[\\/]/).filter(Boolean).pop() ?? p : '');
 
-  /** Session node label: title on line 1, "cwd folder · branch" on line 2. */
+  /** Session node label: title on line 1, cwd folder on line 2. */
   function sessionText(x) {
-    const sub = [baseName(x.cwd), x.branch].filter(Boolean).join(' · ');
-    return sub ? trunc(x.label, 32) + '\n' + trunc(sub, 36) : trunc(x.label, 32);
+    const dir = baseName(x.cwd);
+    return dir ? trunc(x.label, 32) + '\n' + trunc(dir, 36) : trunc(x.label, 32);
   }
 
   function render(forceLayout) {
@@ -222,7 +222,7 @@
     const elements = [
       ...sessions.map((x) => ({
         group: 'nodes',
-        data: { id: 's:' + x.id, sid: x.id, label: sessionText(x), title: x.label, color: colorFor(x.id), cwd: x.cwd, branch: x.branch },
+        data: { id: 's:' + x.id, sid: x.id, label: sessionText(x), title: x.label, color: colorFor(x.id), cwd: x.cwd },
         classes: 'session ' + (x.active ? 'active' : 'idle'),
       })),
       ...files.map((f) => ({
@@ -350,7 +350,7 @@
 
     const d = node.data();
     tip.textContent = node.hasClass('session')
-      ? [d.title, `cwd: ${d.cwd ?? '?'}`, `branch: ${d.branch ?? '?'}`].join('\n')
+      ? [d.title, `cwd: ${d.cwd ?? '?'}`].join('\n')
       : d.path;
     const p = node.renderedPosition();
     tip.style.left = `${p.x + 12}px`;
