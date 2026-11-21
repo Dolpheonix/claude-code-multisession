@@ -28,4 +28,4 @@ VS Code extension (TypeScript, no bundler) that tails Claude Code session transc
 ## Gotchas
 
 - Only sessions whose cwd *equals* a workspace folder can be resumed in that window. A session started in a subfolder needs a window opened on that subfolder.
-- If the Claude Sessions activity bar icon is missing and the views appear under Explorer, the cause is Claude Code's proposed API `contribSecondarySidebar`, not this extension. See README Troubleshooting.
+- If the Claude Sessions activity bar icon is missing and the views appear under Explorer, the cause is Claude Code's proposed API `contribSecondarySidebar`, not this extension. See the README's 문제 해결 (Troubleshooting) section.
