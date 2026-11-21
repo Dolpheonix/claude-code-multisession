@@ -23,6 +23,7 @@ The transcript format is not a public API. All format knowledge lives in [src/pa
 | [src/claudeCode.ts](src/claudeCode.ts) | Opening a session in the Claude Code extension |
 | [src/repoRoot.ts](src/repoRoot.ts) | Finding (and caching) the git repo root of a file, for display paths |
 | [src/permissions.ts](src/permissions.ts) | Permission-prompt hooks: local receiver, shared events file, hook install/uninstall |
+| [src/windowBridge.ts](src/windowBridge.ts) | Asking another VS Code window to open a session |
 
 ## Features
 
@@ -38,7 +39,7 @@ The transcript format is not a public API. All format knowledge lives in [src/pa
   - solid arrows are edits, dashed lines are reads
   - hover to highlight a node's neighbors and see a tooltip (full cwd for sessions, full path for files)
   - filters: workspace dropdown (by session cwd), conflicts, show reads, shared files only, active sessions only. Filter choices are kept when the panel is reopened.
-- **Open in Claude Code**: clicking a session in the tree or the graph resumes it in the Claude Code extension when the session's cwd is exactly a workspace folder of the current window. Other sessions open their raw transcript instead. Right-click a session for **Open in Claude Code** / **Open Transcript**.
+- **Open in Claude Code**: clicking a session in the tree or the graph resumes it in the Claude Code extension when the session's cwd is exactly a workspace folder of the current window. If another VS Code window has that folder open, the session opens in that window and VS Code switches to it. Other sessions open their raw transcript instead. Right-click a session for **Open in Claude Code** / **Open Transcript**.
 
 ### Permission prompts
 
@@ -60,6 +61,8 @@ Limitations: `PermissionRequest` has no tool-use id, so a prompt is matched to a
 Opening a session uses the Claude Code extension's internal `claude-vscode.editor.open` command, and falls back to its `vscode://anthropic.claude-code/open?session=<id>` URI handler. Neither is a documented API (they were found in Claude Code 2.1.x), so they may break with Claude Code updates. Every attempt is logged to the **Claude Multi-Session** output channel.
 
 Claude Code files a session under the directory it started in, so only sessions whose cwd *equals* a workspace folder can be resumed from this window. A session started in a subfolder needs a window opened on that subfolder.
+
+The extension API cannot see or message other windows, so the windows coordinate through the extension's global storage folder. Each window records its workspace folders in `windows/<id>.json` every 10 s. To hand a session over, a window writes a request to `requests/<target-id>/`, which the target polls, and then runs `vscode.openFolder` on the session's cwd (new-window mode). Because that folder is already open, VS Code focuses the existing window instead of opening another. If several windows have the folder open, the most recently focused one gets the session. Requests older than 15 s are dropped, and windows that stop updating their file (for example after a crash) are ignored after 35 s.
 
 ## Settings
 

@@ -8,6 +8,7 @@ import { PermissionRequestInfo, Session, SessionStore } from './sessionStore';
 import { TranscriptWatcher } from './transcriptWatcher';
 import { ConflictsTreeProvider, Node, SessionsTreeProvider } from './treeViews';
 import { isInWorkspace, sessionLabel, visibleSessions } from './viewModel';
+import { WindowBridge } from './windowBridge';
 
 const cfg = () => vscode.workspace.getConfiguration('claudeMultisession');
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -92,9 +93,14 @@ export function activate(context: vscode.ExtensionContext): void {
     log.appendLine('[hook] permission hooks not installed (run "Claude Multi-Session: Install Permission Hooks")');
   }
 
+  // Sessions whose folder is open in another VS Code window are opened there.
+  const bridge = new WindowBridge(context.globalStorageUri.fsPath, log, (id) => void openInClaudeCode(id, log));
+  bridge.start();
+
   context.subscriptions.push(
     log,
     permissions,
+    bridge,
     vscode.commands.registerCommand('claudeMultisession.installPermissionHook', () => installHook(hookPort(), log)),
     vscode.commands.registerCommand('claudeMultisession.uninstallPermissionHook', () => uninstallHook(log)),
     store,
@@ -108,7 +114,8 @@ export function activate(context: vscode.ExtensionContext): void {
       clearRepoRootCache(); // repos may have been created (git init) or removed since
       watcher.rescan();
     }),
-    // Tree click: resume in Claude Code if the session belongs to this window's workspace, else show the transcript.
+    // Tree click: resume in Claude Code if the session belongs to this window's workspace, or in the window that
+    // has its folder open; else show the transcript.
     // Accepts a tree node or a session id (from the graph webview).
     vscode.commands.registerCommand('claudeMultisession.openSession', (arg?: Node | string) => {
       let s: Session | undefined;
@@ -124,8 +131,11 @@ export function activate(context: vscode.ExtensionContext): void {
       const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
       const resumable = isInWorkspace(s, true);
       log.appendLine(`[click] session=${s.id} cwd=${s.cwd ?? '?'} workspace=[${folders.join(', ')}] resumable=${resumable}`);
+      const other = !resumable && s.cwd ? bridge.findWindowFor(s.cwd) : undefined;
       if (resumable) {
         void openInClaudeCode(s.id, log);
+      } else if (other && s.cwd) {
+        void bridge.requestOpen(other, s.id, s.cwd);
       } else if (s.transcriptPath) {
         void vscode.commands.executeCommand('vscode.open', vscode.Uri.file(s.transcriptPath));
       }
