@@ -62,6 +62,11 @@
           "default": 10,
           "description": "A session with activity within this many minutes is shown as active."
         },
+        "claudeMultisession.groupByWorkspace": {
+          "type": "boolean",
+          "default": true,
+          "description": "Group sessions in the sidebar by workspace (the folder each session started in)."
+        },
         "claudeMultisession.scope": {
           "type": "string",
           "enum": ["all", "workspace"],
