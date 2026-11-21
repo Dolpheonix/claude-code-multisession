@@ -1,0 +1,87 @@
+{
+  "name": "claude-code-multisession",
+  "displayName": "Claude Code Multi-Session Monitor",
+  "description": "Watch multiple Claude Code sessions at once and visualize which files each session touches, highlighting conflicts.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "license": "MIT",
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["Visualization", "Other"],
+  "main": "./out/extension.js",
+  "activationEvents": ["onStartupFinished"],
+  "contributes": {
+    "commands": [
+      { "command": "claudeMultisession.openGraph", "title": "Open Session Graph", "category": "Claude Multi-Session", "icon": "$(type-hierarchy)" },
+      { "command": "claudeMultisession.refresh", "title": "Rescan Transcripts", "category": "Claude Multi-Session", "icon": "$(refresh)" },
+      { "command": "claudeMultisession.openSession", "title": "Open Session", "category": "Claude Multi-Session" },
+      { "command": "claudeMultisession.openInClaude", "title": "Open in Claude Code", "category": "Claude Multi-Session", "icon": "$(comment-discussion)" },
+      { "command": "claudeMultisession.openTranscript", "title": "Open Transcript", "category": "Claude Multi-Session", "icon": "$(file-text)" }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "claudeMultisession", "title": "Claude Sessions", "icon": "media/sessions.svg" }
+      ]
+    },
+    "views": {
+      "claudeMultisession": [
+        { "id": "claudeMultisession.sessions", "name": "Sessions" },
+        { "id": "claudeMultisession.conflicts", "name": "Conflicts" }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        { "command": "claudeMultisession.openGraph", "when": "view == claudeMultisession.sessions", "group": "navigation" },
+        { "command": "claudeMultisession.refresh", "when": "view == claudeMultisession.sessions", "group": "navigation" }
+      ],
+      "view/item/context": [
+        { "command": "claudeMultisession.openInClaude", "when": "view == claudeMultisession.sessions && viewItem == session.workspace", "group": "inline" },
+        { "command": "claudeMultisession.openInClaude", "when": "view == claudeMultisession.sessions && viewItem == session.workspace", "group": "navigation@1" },
+        { "command": "claudeMultisession.openTranscript", "when": "view == claudeMultisession.sessions && viewItem =~ /^session/", "group": "navigation@2" }
+      ],
+      "commandPalette": [
+        { "command": "claudeMultisession.openSession", "when": "false" },
+        { "command": "claudeMultisession.openInClaude", "when": "false" },
+        { "command": "claudeMultisession.openTranscript", "when": "false" }
+      ]
+    },
+    "configuration": {
+      "title": "Claude Multi-Session",
+      "properties": {
+        "claudeMultisession.projectsDir": {
+          "type": "string",
+          "default": "",
+          "description": "Claude Code transcripts directory. Empty = ~/.claude/projects"
+        },
+        "claudeMultisession.lookbackHours": {
+          "type": "number",
+          "default": 24,
+          "description": "Only load transcripts modified within this many hours."
+        },
+        "claudeMultisession.activeMinutes": {
+          "type": "number",
+          "default": 10,
+          "description": "A session with activity within this many minutes is shown as active."
+        },
+        "claudeMultisession.scope": {
+          "type": "string",
+          "enum": ["all", "workspace"],
+          "default": "all",
+          "description": "'workspace' = only sessions whose cwd is inside an open workspace folder."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "dependencies": {
+    "cytoscape": "^3.30.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.4.0"
+  }
+}
