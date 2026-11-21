@@ -8,6 +8,8 @@ Claude Code writes one transcript per session to `~/.claude/projects/<project>/<
 
 Each session's **cwd** is the directory it started in: the first `cwd` of its main transcript. Later lines can carry a different cwd after the session `cd`s elsewhere, and those are ignored. Git-Bash style paths (`/c/Users/...`) are normalized to native Windows paths.
 
+Files in Claude Code's own temp area (`<tmp>/claude/…`, including each session's `scratchpad/`) are ignored. They hold throwaway scripts and outputs that never get merged, so they would only add noise to the graph and the conflicts.
+
 The transcript format is not a public API. All format knowledge lives in [src/parser.ts](src/parser.ts).
 
 | File | Role |
@@ -19,6 +21,7 @@ The transcript format is not a public API. All format knowledge lives in [src/pa
 | [src/treeViews.ts](src/treeViews.ts) | Sidebar: Sessions and Conflicts views |
 | [src/graphPanel.ts](src/graphPanel.ts) + [media/graph.js](media/graph.js) | Cytoscape graph webview |
 | [src/claudeCode.ts](src/claudeCode.ts) | Opening a session in the Claude Code extension |
+| [src/repoRoot.ts](src/repoRoot.ts) | Finding (and caching) the git repo root of a file, for display paths |
 
 ## Features
 
@@ -27,6 +30,7 @@ The transcript format is not a public API. All format knowledge lives in [src/pa
 - **Conflicts view**: files touched by 2+ included sessions, with a badge count on the activity bar
 - **Graph**: a left-to-right layout. Sessions are in the left column and files in the right, and each session's files are grouped next to it. Files shared by several sessions are placed between those sessions' groups.
   - session label: title, then the cwd folder
+  - file label: path from the root of the git repo that contains it (the nearest folder with a `.git` directory or file, so worktrees count too), e.g. `my-repo/src/a.ts`. It looks the same in every window. Files outside any repo show the path from the session's cwd. Long paths are shortened from the left. The trees show the same folders next to each file name. Repo roots are cached; **Rescan Transcripts** clears the cache after a `git init`.
   - red file: written by 2+ sessions
   - orange file: written by one session, read by another
   - the **Conflicts** checkbox turns this red/orange highlighting off

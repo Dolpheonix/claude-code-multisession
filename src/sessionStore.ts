@@ -1,3 +1,4 @@
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { TranscriptEvent } from './parser';
@@ -73,6 +74,19 @@ export function toNativePath(p: string): string {
     }
   }
   return p;
+}
+
+/**
+ * Claude Code's own temp area (`<tmp>/claude/<id>/<session>/scratchpad/...`): throwaway scripts and
+ * outputs that never get merged anywhere, so they're not tracked as session files.
+ * Matched by location under the OS temp dir, and by the `claude/…/scratchpad` shape in case the
+ * temp dir differs (e.g. a custom TMPDIR for Claude Code).
+ */
+const CLAUDE_TEMP_PREFIX = fileKey(path.join(os.tmpdir(), 'claude')) + path.sep;
+const SCRATCHPAD_SHAPE = /[\\/]claude[\\/](?:[^\\/]+[\\/])*scratchpad(?:[\\/]|$)/;
+
+export function isClaudeTempFile(key: string): boolean {
+  return key.startsWith(CLAUDE_TEMP_PREFIX) || SCRATCHPAD_SHAPE.test(key);
 }
 
 export class SessionStore {
@@ -158,6 +172,9 @@ export class SessionStore {
   private applyFile(s: Session, ev: Extract<TranscriptEvent, { kind: 'file' }>): void {
     this.touchTime(s, ev.timestamp);
     const key = fileKey(ev.filePath, ev.cwd ?? s.cwd);
+    if (isClaudeTempFile(key)) {
+      return;
+    }
     const st = s.files.get(key) ?? { reads: 0, edits: 0, lastTs: 0 };
     if (ev.access === 'edit') {
       st.edits++;

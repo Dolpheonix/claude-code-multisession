@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { conflictLevel, ConflictLevel, fileKey, Session, SessionStore } from './sessionStore';
+import { findRepoRoot } from './repoRoot';
+import { conflictLevel, ConflictLevel, fileKey, Session, SessionStore, toNativePath } from './sessionStore';
 
 export interface GraphSession {
   id: string;
@@ -69,6 +70,38 @@ export function visibleSessions(store: SessionStore): Session[] {
     .sort((a, b) => b.lastTs - a.lastTs);
 }
 
+/**
+ * File path for display, starting at the folder that gives it context rather than the drive root:
+ * the git repo containing it (e.g. "my-repo/src/a.ts") — the same in every window — else the
+ * session's cwd, else the full path. Uses "/" separators.
+ */
+export function repoRelativePath(filePath: string, cwd?: string): string {
+  let p = toNativePath(filePath);
+  if (!path.isAbsolute(p) && cwd) {
+    p = path.resolve(toNativePath(cwd), p);
+  }
+  const rel = (base: string) => [path.basename(base) || base, ...path.relative(base, p).split(path.sep)].join('/');
+
+  const repo = findRepoRoot(path.dirname(p));
+  if (repo) {
+    return rel(repo);
+  }
+  if (cwd) {
+    const base = toNativePath(cwd);
+    if (fileKey(p).startsWith(fileKey(base) + path.sep)) {
+      return rel(base);
+    }
+  }
+  return p;
+}
+
+/** Directory part of {@link repoRelativePath}. */
+export function repoRelativeDir(filePath: string, cwd?: string): string {
+  const r = repoRelativePath(filePath, cwd);
+  const i = Math.max(r.lastIndexOf('/'), r.lastIndexOf('\\'));
+  return i > 0 ? r.slice(0, i) : '';
+}
+
 /** Visible sessions the user hasn't switched off: what the graph and conflict detection consider. */
 export function includedSessions(store: SessionStore): Session[] {
   return visibleSessions(store).filter((s) => store.isIncluded(s.id));
@@ -90,7 +123,7 @@ export function buildGraphState(store: SessionStore): GraphState {
     files.push({
       key: f.key,
       path: f.displayPath,
-      label: path.basename(f.displayPath),
+      label: repoRelativePath(f.displayPath, store.sessions.get(touching[0][0])?.cwd),
       conflict: conflictLevel(visible),
     });
     for (const [sid, t] of touching) {

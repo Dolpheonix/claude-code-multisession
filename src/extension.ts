@@ -3,6 +3,7 @@ import { GraphPanel } from './graphPanel';
 import { Session, SessionStore } from './sessionStore';
 import { TranscriptWatcher } from './transcriptWatcher';
 import { openInClaudeCode } from './claudeCode';
+import { clearRepoRootCache } from './repoRoot';
 import { ConflictsTreeProvider, Node, SessionsTreeProvider } from './treeViews';
 import { isInWorkspace } from './viewModel';
 
@@ -54,7 +55,10 @@ export function activate(context: vscode.ExtensionContext): void {
     conflictsView,
     sessionsView,
     vscode.commands.registerCommand('claudeMultisession.openGraph', () => GraphPanel.show(context, store)),
-    vscode.commands.registerCommand('claudeMultisession.refresh', () => watcher.rescan()),
+    vscode.commands.registerCommand('claudeMultisession.refresh', () => {
+      clearRepoRootCache(); // repos may have been created (git init) or removed since
+      watcher.rescan();
+    }),
     // Tree click: resume in Claude Code if the session belongs to this window's workspace, else show the transcript.
     // Accepts a tree node or a session id (from the graph webview).
     vscode.commands.registerCommand('claudeMultisession.openSession', (arg?: Node | string) => {

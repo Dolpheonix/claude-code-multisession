@@ -1,7 +1,14 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { conflictLevel, FileInfo, fileKey, Session, SessionStore } from './sessionStore';
-import { includedSessions, isActive, isInWorkspace, sessionLabel, visibleSessions } from './viewModel';
+import {
+  includedSessions,
+  isActive,
+  isInWorkspace,
+  sessionLabel,
+  visibleSessions,
+  repoRelativeDir,
+} from './viewModel';
 
 export type Node =
   | { type: 'workspace'; key: string; cwd?: string; sessions: Session[] }
@@ -196,7 +203,10 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
   private fileItem(node: Extract<Node, { type: 'file' }>): vscode.TreeItem {
     const item = new vscode.TreeItem(path.basename(node.display));
     item.id = `f:${node.session.id}|${node.key}`;
-    item.description = `${node.edits ? `✎${node.edits} ` : ''}${node.reads ? `👁${node.reads}` : ''}`;
+    // Counts, then the parent folders up to the workspace folder (like VS Code's search results).
+    const counts = [node.edits ? `✎${node.edits}` : '', node.reads ? `👁${node.reads}` : ''].filter(Boolean).join(' ');
+    const dir = repoRelativeDir(node.display, node.session.cwd);
+    item.description = [counts, dir].filter(Boolean).join('  ');
     item.tooltip = node.display;
     item.resourceUri = vscode.Uri.file(node.display);
     item.iconPath = node.shared
@@ -239,7 +249,9 @@ export class ConflictsTreeProvider extends GatedTreeProvider<FileInfo> {
       const s = this.store.sessions.get(sid);
       return `${s ? sessionLabel(s) : sid.slice(0, 8)} (${t.edits ? 'edit' : 'read'})`;
     });
-    item.description = `${f.touches.size} sessions`;
+    const firstCwd = this.store.sessions.get([...f.touches.keys()][0])?.cwd;
+    const dir = repoRelativeDir(f.displayPath, firstCwd);
+    item.description = [dir, `${f.touches.size} sessions`].filter(Boolean).join(' · ');
     item.tooltip = `${f.displayPath}\n\n${names.join('\n')}`;
     item.iconPath = new vscode.ThemeIcon(
       level === 'writeWrite' ? 'error' : 'warning',

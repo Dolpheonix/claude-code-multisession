@@ -192,6 +192,8 @@
   });
 
   const trunc = (str, n) => (str.length > n ? str.slice(0, n - 1) + '…' : str);
+  /** Keeps the end of a path (file name and nearest folders), which is the informative part. */
+  const truncLeft = (str, n) => (str.length > n ? '…' + str.slice(str.length - n + 1) : str);
   const baseName = (p) => (p ? p.split(/[\\/]/).filter(Boolean).pop() ?? p : '');
 
   /** Session node label: title on line 1, cwd folder on line 2. */
@@ -227,7 +229,8 @@
       })),
       ...files.map((f) => ({
         group: 'nodes',
-        data: { id: 'f:' + f.key, path: f.path, label: f.label },
+        // Label = path from the workspace folder; full path is in the hover tooltip.
+        data: { id: 'f:' + f.key, path: f.path, label: truncLeft(f.label, 56) },
         classes: 'file ' + (opts.showConflicts ? f.conflict : 'none'),
       })),
       ...edges.map((e) => ({
