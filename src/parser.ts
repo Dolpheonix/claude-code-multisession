@@ -18,7 +18,13 @@ export type TranscriptEvent =
       tool: string;
       access: AccessKind;
       filePath: string;
-    };
+    }
+  /** Any tool call (used to know which tool a later result belongs to). */
+  | { kind: 'toolUse'; sessionId: string; toolUseId: string; tool: string }
+  /** A tool call finished: ran after approval, failed, or was denied. */
+  | { kind: 'toolResult'; sessionId: string; toolUseId: string; timestamp: number }
+  /** The user sent a message in the main conversation. */
+  | { kind: 'prompt'; sessionId: string; timestamp: number };
 
 const EDIT_TOOLS: Record<string, string> = {
   Edit: 'file_path',
@@ -62,39 +68,50 @@ export function parseLine(line: string): TranscriptEvent[] {
     });
   }
 
-  if (rec.type !== 'assistant') {
-    return events;
-  }
-
-  const content = rec.message?.content;
-  if (!Array.isArray(content)) {
-    return events;
-  }
-
-  for (const block of content) {
-    if (block?.type !== 'tool_use' || typeof block.name !== 'string') {
-      continue;
+  const ts = Number.isNaN(timestamp) ? Date.now() : timestamp;
+  if (rec.type === 'user') {
+    events.push(...userEvents(rec, sessionId, ts));
+  } else if (rec.type === 'assistant' && Array.isArray(rec.message?.content)) {
+    for (const block of rec.message.content) {
+      events.push(...toolUseEvents(block, sessionId, cwd, ts));
     }
-    const editKey = EDIT_TOOLS[block.name];
-    const readKey = READ_TOOLS[block.name];
-    const key = editKey ?? readKey;
-    if (!key) {
-      continue;
-    }
-    const filePath = block.input?.[key];
-    if (typeof filePath !== 'string' || !filePath) {
-      continue;
-    }
-    events.push({
-      kind: 'file',
-      sessionId,
-      cwd,
-      timestamp: Number.isNaN(timestamp) ? Date.now() : timestamp,
-      tool: block.name,
-      access: editKey ? 'edit' : 'read',
-      filePath,
-    });
   }
-
   return events;
+}
+
+/** A `tool_use` block → the call itself, plus a file access for file tools. */
+function toolUseEvents(block: any, sessionId: string, cwd: string | undefined, ts: number): TranscriptEvent[] {
+  if (block?.type !== 'tool_use' || typeof block.name !== 'string') {
+    return [];
+  }
+  const events: TranscriptEvent[] = [];
+  if (typeof block.id === 'string') {
+    events.push({ kind: 'toolUse', sessionId, toolUseId: block.id, tool: block.name });
+  }
+  const editKey = EDIT_TOOLS[block.name];
+  const key = editKey ?? READ_TOOLS[block.name];
+  const filePath = key ? block.input?.[key] : undefined;
+  if (typeof filePath === 'string' && filePath) {
+    events.push({ kind: 'file', sessionId, cwd, timestamp: ts, tool: block.name, access: editKey ? 'edit' : 'read', filePath });
+  }
+  return events;
+}
+
+/**
+ * `user` records carry either tool results (one per finished tool call; denials included, with
+ * `toolDenialKind`) or a message the user typed. Meta records (injected context) and sidechain
+ * (subagent) records are not the user typing.
+ */
+function userEvents(rec: any, sessionId: string, ts: number): TranscriptEvent[] {
+  const content = rec.message?.content;
+  if (Array.isArray(content)) {
+    const results: TranscriptEvent[] = content
+      .filter((b: any) => b?.type === 'tool_result' && typeof b.tool_use_id === 'string')
+      .map((b: any) => ({ kind: 'toolResult', sessionId, toolUseId: b.tool_use_id, timestamp: ts }));
+    if (results.length > 0) {
+      return results;
+    }
+  }
+  const typed = typeof content === 'string' || (Array.isArray(content) && content.some((b: any) => b?.type === 'text'));
+  return typed && rec.isMeta !== true && rec.isSidechain !== true ? [{ kind: 'prompt', sessionId, timestamp: ts }] : [];
 }

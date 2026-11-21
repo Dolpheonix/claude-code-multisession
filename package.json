@@ -15,7 +15,9 @@
       { "command": "claudeMultisession.refresh", "title": "Rescan Transcripts", "category": "Claude Multi-Session", "icon": "$(refresh)" },
       { "command": "claudeMultisession.openSession", "title": "Open Session", "category": "Claude Multi-Session" },
       { "command": "claudeMultisession.openInClaude", "title": "Open in Claude Code", "category": "Claude Multi-Session", "icon": "$(comment-discussion)" },
-      { "command": "claudeMultisession.openTranscript", "title": "Open Transcript", "category": "Claude Multi-Session", "icon": "$(file-text)" }
+      { "command": "claudeMultisession.openTranscript", "title": "Open Transcript", "category": "Claude Multi-Session", "icon": "$(file-text)" },
+      { "command": "claudeMultisession.installPermissionHook", "title": "Install Permission Hooks", "category": "Claude Multi-Session" },
+      { "command": "claudeMultisession.uninstallPermissionHook", "title": "Uninstall Permission Hooks", "category": "Claude Multi-Session" }
     ],
     "viewsContainers": {
       "activitybar": [
@@ -66,6 +68,16 @@
           "type": "boolean",
           "default": true,
           "description": "Group sessions in the sidebar by workspace (the folder each session started in)."
+        },
+        "claudeMultisession.hookPort": {
+          "type": "number",
+          "default": 47821,
+          "description": "Local port (127.0.0.1) that receives Claude Code permission hooks. After changing it, run 'Install Permission Hooks' again."
+        },
+        "claudeMultisession.notifyPermission": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a notification when a session starts waiting for a permission prompt (requires the permission hooks)."
         },
         "claudeMultisession.scope": {
           "type": "string",

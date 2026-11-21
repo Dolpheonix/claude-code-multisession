@@ -21,7 +21,27 @@ export interface Session {
   lastTs: number;
   /** key = normalized file key */
   files: Map<string, FileTouch>;
+  /** Latest permission prompt reported by the hook (see {@link SessionStore.waitingFor}). */
+  permission?: PermissionRequestInfo;
+  /** Unfinished tool calls: tool_use id -> tool name. */
+  openToolUses: Map<string, string>;
+  /** tool name -> time of its latest result (approved+ran, failed, or denied). */
+  lastResultByTool: Map<string, number>;
+  lastResultTs: number;
+  lastPromptTs: number;
 }
+
+export interface PermissionRequestInfo {
+  /** When the prompt was reported (ms). */
+  since: number;
+  /** Tool asking for permission; absent for a bare permission_prompt notification. */
+  tool?: string;
+  /** Short human-readable description, e.g. "Bash: npm test". */
+  summary: string;
+}
+
+/** A permission prompt never answered (session closed meanwhile) stops showing after this long. */
+const PERMISSION_MAX_AGE_MS = 2 * 3600_000;
 
 export interface FileInfo {
   key: string;
@@ -152,6 +172,21 @@ export class SessionStore {
         case 'file':
           this.applyFile(s, ev);
           break;
+        case 'toolUse':
+          s.openToolUses.set(ev.toolUseId, ev.tool);
+          break;
+        case 'toolResult': {
+          const tool = s.openToolUses.get(ev.toolUseId);
+          s.openToolUses.delete(ev.toolUseId);
+          if (tool) {
+            s.lastResultByTool.set(tool, Math.max(s.lastResultByTool.get(tool) ?? 0, ev.timestamp));
+          }
+          s.lastResultTs = Math.max(s.lastResultTs, ev.timestamp);
+          break;
+        }
+        case 'prompt':
+          s.lastPromptTs = Math.max(s.lastPromptTs, ev.timestamp);
+          break;
       }
     }
     this.fireChanged();
@@ -192,10 +227,50 @@ export class SessionStore {
     f.touches.set(s.id, st);
   }
 
+  /**
+   * Record a permission prompt reported by the hook. A `Notification` (no tool, ~6 s after the
+   * prompt) for a prompt already known is ignored so the original time and tool are kept.
+   */
+  applyPermission(sessionId: string, info: PermissionRequestInfo): void {
+    if (Date.now() - info.since > PERMISSION_MAX_AGE_MS) {
+      return;
+    }
+    const s = this.getSession(sessionId);
+    const current = this.waitingFor(s);
+    if (current && (!info.tool || current.since >= info.since)) {
+      return;
+    }
+    s.permission = info;
+    this.fireChanged();
+  }
+
+  /**
+   * The prompt the session is still waiting on, if any. Derived (not stored) so hook events and
+   * transcript lines can arrive in any order: a prompt is answered once a result for its tool
+   * (or, without a tool, any result) or a new user message appears after it.
+   */
+  waitingFor(s: Session): PermissionRequestInfo | undefined {
+    const p = s.permission;
+    if (!p || Date.now() - p.since > PERMISSION_MAX_AGE_MS || s.lastPromptTs > p.since) {
+      return undefined;
+    }
+    const answeredAt = p.tool ? (s.lastResultByTool.get(p.tool) ?? 0) : s.lastResultTs;
+    return answeredAt > p.since ? undefined : p;
+  }
+
   private getSession(id: string): Session {
     let s = this.sessions.get(id);
     if (!s) {
-      s = { id, firstTs: Infinity, lastTs: 0, files: new Map() };
+      s = {
+        id,
+        firstTs: Infinity,
+        lastTs: 0,
+        files: new Map(),
+        openToolUses: new Map(),
+        lastResultByTool: new Map(),
+        lastResultTs: 0,
+        lastPromptTs: 0,
+      };
       this.sessions.set(id, s);
     }
     return s;

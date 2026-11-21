@@ -10,6 +10,7 @@
   const bg = v('--vscode-editor-background', '#1e1e1e');
   const red = v('--vscode-charts-red', '#f14c4c');
   const orange = v('--vscode-charts-orange', '#d18616');
+  const yellow = v('--vscode-charts-yellow', '#cca700');
   const fileFill = v('--vscode-editorWidget-background', '#252526');
   const fileBorder = v('--vscode-editorWidget-border', '#454545');
 
@@ -59,6 +60,9 @@
       },
       { selector: 'node.session.idle', style: { opacity: 0.45 } },
       { selector: 'node.session.active', style: { 'border-width': 2, 'border-color': '#3fb950' } },
+      // Waiting for a permission prompt: yellow ring that pulses (see the interval below).
+      { selector: 'node.session.waiting', style: { opacity: 1, 'outline-width': 3, 'outline-color': yellow, 'outline-offset': 2 } },
+      { selector: 'node.session.waiting.pulse', style: { 'outline-opacity': 0.25 } },
       {
         selector: 'node.file',
         style: {
@@ -224,8 +228,8 @@
     const elements = [
       ...sessions.map((x) => ({
         group: 'nodes',
-        data: { id: 's:' + x.id, sid: x.id, label: sessionText(x), title: x.label, color: colorFor(x.id), cwd: x.cwd },
-        classes: 'session ' + (x.active ? 'active' : 'idle'),
+        data: { id: 's:' + x.id, sid: x.id, label: sessionText(x), title: x.label, color: colorFor(x.id), cwd: x.cwd, waiting: x.waiting },
+        classes: 'session ' + (x.active ? 'active' : 'idle') + (x.waiting ? ' waiting' : ''),
       })),
       ...files.map((f) => ({
         group: 'nodes',
@@ -356,7 +360,7 @@
 
     const d = node.data();
     tip.textContent = node.hasClass('session')
-      ? [d.title, `cwd: ${d.cwd ?? '?'}`].join('\n')
+      ? [d.title, `cwd: ${d.cwd ?? '?'}`, ...(d.waiting ? [`🔔 waiting for permission: ${d.waiting}`] : [])].join('\n')
       : d.path;
     const p = node.renderedPosition();
     tip.style.left = `${p.x + 12}px`;
@@ -372,6 +376,8 @@
   // Click: open file / session (Claude Code if in this workspace, else transcript).
   cy.on('tap', 'node.file', (e) => vscode.postMessage({ type: 'openFile', path: e.target.data('path') }));
   cy.on('tap', 'node.session', (e) => vscode.postMessage({ type: 'openSession', sessionId: e.target.data('sid') }));
+
+  setInterval(() => cy.nodes('.waiting').toggleClass('pulse'), 700);
 
   vscode.postMessage({ type: 'ready' });
 })();

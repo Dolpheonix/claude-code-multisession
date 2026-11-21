@@ -8,6 +8,8 @@ export interface GraphSession {
   label: string;
   cwd?: string;
   active: boolean;
+  /** Summary of the permission prompt the session is waiting on, if any. */
+  waiting?: string;
   lastTs: number;
 }
 
@@ -137,6 +139,7 @@ export function buildGraphState(store: SessionStore): GraphState {
       label: sessionLabel(s),
       cwd: s.cwd,
       active: isActive(s),
+      waiting: store.waitingFor(s)?.summary,
       lastTs: s.lastTs,
     })),
     files,

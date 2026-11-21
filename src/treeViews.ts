@@ -75,7 +75,18 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
           reads += t.reads;
           edits += t.edits;
         }
-        return [s.id, sessionLabel(s), s.cwd, isActive(s), this.store.isIncluded(s.id), s.files.size, reads, edits].join('\u0001');
+        const waiting = this.store.waitingFor(s);
+        return [
+          s.id,
+          sessionLabel(s),
+          s.cwd,
+          isActive(s),
+          this.store.isIncluded(s.id),
+          waiting ? `${waiting.since}:${waiting.summary}` : '',
+          s.files.size,
+          reads,
+          edits,
+        ].join('\u0001');
       })
       .join('\u0002');
   }
@@ -149,7 +160,14 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
     const active = node.sessions.filter(isActive).length;
     const current = isInWorkspace(node.sessions[0], true);
     const n = node.sessions.length;
-    item.description = `${n} session${n === 1 ? '' : 's'}${active ? ` · ${active} active` : ''}`;
+    const waiting = node.sessions.filter((s) => this.store.waitingFor(s)).length;
+    item.description = [
+      `${n} session${n === 1 ? '' : 's'}`,
+      active ? `${active} active` : '',
+      waiting ? `🔔 ${waiting} waiting` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
     item.tooltip = new vscode.MarkdownString(
       `**${label}**${current ? ' (this window)' : ''}\n\n\`${node.cwd ?? '?'}\``,
     );
@@ -176,14 +194,19 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
     const active = isActive(s);
     // Untitled sessions already show the cwd folder in their label; grouped sessions show it in the group.
     const folder = !groupByWorkspace() && s.title && s.cwd ? `${path.basename(s.cwd)} · ` : '';
-    item.description = `${folder}${active ? 'active' : 'idle'} · ${s.files.size} files · ${timeAgo(s.lastTs)}`;
-    item.tooltip = new vscode.MarkdownString(
-      `**${sessionLabel(s)}**\n\n- id: \`${s.id}\`\n- cwd: \`${s.cwd ?? '?'}\``,
-    );
-    item.iconPath = new vscode.ThemeIcon(
-      active ? 'circle-filled' : 'circle-outline',
-      active ? new vscode.ThemeColor('charts.green') : undefined,
-    );
+    const waiting = this.store.waitingFor(s);
+    let status = active ? 'active' : 'idle';
+    if (waiting) {
+      status = `🔔 ${waiting.summary}`;
+    }
+    item.description = `${folder}${status} · ${s.files.size} files · ${timeAgo(s.lastTs)}`;
+    const md = new vscode.MarkdownString(`**${sessionLabel(s)}**\n\n- id: \`${s.id}\`\n- cwd: \`${s.cwd ?? '?'}\``);
+    if (waiting) {
+      md.appendMarkdown(`\n\n**🔔 Waiting for permission** (${timeAgo(waiting.since)}): `);
+      md.appendText(waiting.summary);
+    }
+    item.tooltip = md;
+    item.iconPath = waiting ? new vscode.ThemeIcon('bell-dot', new vscode.ThemeColor('charts.yellow')) : activityIcon(active);
     // Sessions of this window's workspace can be resumed in Claude Code; others open the raw transcript.
     const resumable = isInWorkspace(s, true);
     item.contextValue = resumable ? 'session.workspace' : 'session';
@@ -260,6 +283,12 @@ export class ConflictsTreeProvider extends GatedTreeProvider<FileInfo> {
     item.command = { command: 'vscode.open', title: 'Open', arguments: [vscode.Uri.file(f.displayPath)] };
     return item;
   }
+}
+
+function activityIcon(active: boolean): vscode.ThemeIcon {
+  return active
+    ? new vscode.ThemeIcon('circle-filled', new vscode.ThemeColor('charts.green'))
+    : new vscode.ThemeIcon('circle-outline');
 }
 
 function timeAgo(ts: number): string {

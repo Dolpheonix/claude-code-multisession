@@ -1,11 +1,16 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
-import { GraphPanel } from './graphPanel';
-import { Session, SessionStore } from './sessionStore';
-import { TranscriptWatcher } from './transcriptWatcher';
 import { openInClaudeCode } from './claudeCode';
+import { GraphPanel } from './graphPanel';
+import { installHook, isHookInstalled, PermissionEvents, uninstallHook } from './permissions';
 import { clearRepoRootCache } from './repoRoot';
+import { PermissionRequestInfo, Session, SessionStore } from './sessionStore';
+import { TranscriptWatcher } from './transcriptWatcher';
 import { ConflictsTreeProvider, Node, SessionsTreeProvider } from './treeViews';
-import { isInWorkspace } from './viewModel';
+import { isInWorkspace, sessionLabel, visibleSessions } from './viewModel';
+
+const cfg = () => vscode.workspace.getConfiguration('claudeMultisession');
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 export function activate(context: vscode.ExtensionContext): void {
   const log = vscode.window.createOutputChannel('Claude Multi-Session');
@@ -46,8 +51,52 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   });
 
+  // Permission prompts (via Claude Code hooks): Sessions badge + a notification per new prompt.
+  const hookPort = () => cfg().get<number>('hookPort', 47821);
+  const permissions = new PermissionEvents(
+    path.join(context.globalStorageUri.fsPath, 'permission-events.jsonl'),
+    store,
+    log,
+  );
+  permissions.start(hookPort());
+  const activatedAt = Date.now();
+  const notified = new Set<string>();
+  const updateWaiting = () => {
+    const waiting = visibleSessions(store)
+      .map((s) => ({ s, p: store.waitingFor(s) }))
+      .filter((x): x is { s: Session; p: PermissionRequestInfo } => x.p !== undefined);
+    sessionsView.badge = waiting.length
+      ? { value: waiting.length, tooltip: `${waiting.length} session(s) waiting for permission` }
+      : undefined;
+    for (const { s, p } of waiting) {
+      const key = `${s.id}:${p.since}`;
+      // Only prompts that appeared while this window was open (not replayed history), once each.
+      if (notified.has(key) || p.since < activatedAt - 5_000 || !cfg().get<boolean>('notifyPermission', true)) {
+        continue;
+      }
+      notified.add(key);
+      // Keep it to one short line: session + tool. The full command is in the Sessions view tooltip.
+      const label = clip(sessionLabel(s), 40);
+      const what = p.tool ? `wants to run ${p.tool}` : 'is waiting for permission';
+      void vscode.window
+        .showInformationMessage(`🔔 ${label} ${what}`, 'Open Session')
+        .then((choice) => {
+          if (choice) {
+            void vscode.commands.executeCommand('claudeMultisession.openSession', s.id);
+          }
+        });
+    }
+  };
+  store.onDidChange(updateWaiting);
+  if (!isHookInstalled()) {
+    log.appendLine('[hook] permission hooks not installed (run "Claude Multi-Session: Install Permission Hooks")');
+  }
+
   context.subscriptions.push(
     log,
+    permissions,
+    vscode.commands.registerCommand('claudeMultisession.installPermissionHook', () => installHook(hookPort(), log)),
+    vscode.commands.registerCommand('claudeMultisession.uninstallPermissionHook', () => uninstallHook(log)),
     store,
     watcher,
     sessionsTree,
@@ -97,7 +146,14 @@ export function activate(context: vscode.ExtensionContext): void {
       conflictsTree.refresh();
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('claudeMultisession.projectsDir')) {
+      if (e.affectsConfiguration('claudeMultisession.hookPort')) {
+        permissions.restart(hookPort());
+        if (isHookInstalled()) {
+          void vscode.window.showWarningMessage(
+            'The hook port changed. Run "Install Permission Hooks" again so Claude Code posts to the new port.',
+          );
+        }
+      } else if (e.affectsConfiguration('claudeMultisession.projectsDir')) {
         watcher.rescan();
       } else if (e.affectsConfiguration('claudeMultisession')) {
         sessionsTree.refresh();

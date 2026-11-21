@@ -22,6 +22,7 @@ The transcript format is not a public API. All format knowledge lives in [src/pa
 | [src/graphPanel.ts](src/graphPanel.ts) + [media/graph.js](media/graph.js) | Cytoscape graph webview |
 | [src/claudeCode.ts](src/claudeCode.ts) | Opening a session in the Claude Code extension |
 | [src/repoRoot.ts](src/repoRoot.ts) | Finding (and caching) the git repo root of a file, for display paths |
+| [src/permissions.ts](src/permissions.ts) | Permission-prompt hooks: local receiver, shared events file, hook install/uninstall |
 
 ## Features
 
@@ -39,6 +40,21 @@ The transcript format is not a public API. All format knowledge lives in [src/pa
   - filters: workspace dropdown (by session cwd), conflicts, show reads, shared files only, active sessions only. Filter choices are kept when the panel is reopened.
 - **Open in Claude Code**: clicking a session in the tree or the graph resumes it in the Claude Code extension when the session's cwd is exactly a workspace folder of the current window. Other sessions open their raw transcript instead. Right-click a session for **Open in Claude Code** / **Open Transcript**.
 
+### Permission prompts
+
+Shows which sessions are waiting for you to approve a tool. This uses [Claude Code hooks](https://code.claude.com/docs/en/hooks), a documented interface, so run **Claude Multi-Session: Install Permission Hooks** once. After you confirm, it adds `http` hooks to `~/.claude/settings.json` and saves a backup as `settings.json.multisession-backup`:
+
+- `PermissionRequest` (every tool): fires the moment Claude is about to ask.
+- `Notification` with matcher `permission_prompt`: fires about 6 s into an unanswered prompt, as a fallback.
+
+Both POST to `http://127.0.0.1:<claudeMultisession.hookPort>/claude-multisession/hook` with a 2 s timeout and `onFailure: "continue"`. The extension answers immediately with `{}` (no decision), so Claude Code always shows its normal prompt. If no VS Code window is listening, the request fails fast and the prompt appears as usual. **Uninstall Permission Hooks** removes only these entries.
+
+A waiting session gets a 🔔 icon and the prompt summary (e.g. `Bash: npm test`) in the Sessions view, a count badge, a pulsing yellow ring in the graph, and a notification with **Open Session** (turn it off with `claudeMultisession.notifyPermission`). The prompt counts as answered once its tool's result appears in the transcript (approved and ran, failed, or denied) or the user sends a new message. Unanswered prompts stop showing after 2 hours.
+
+Only one VS Code window can own the port. That window appends events to a file in the extension's global storage, and every window tails it. If the owner closes, another window takes the port over within 15 s.
+
+Limitations: `PermissionRequest` has no tool-use id, so a prompt is matched to a later result of the same tool. Needs Claude Code 2.1.295+ for `onFailure`; the VS Code extension sends `permission_prompt` notifications from 2.1.233.
+
 ### Claude Code integration
 
 Opening a session uses the Claude Code extension's internal `claude-vscode.editor.open` command, and falls back to its `vscode://anthropic.claude-code/open?session=<id>` URI handler. Neither is a documented API (they were found in Claude Code 2.1.x), so they may break with Claude Code updates. Every attempt is logged to the **Claude Multi-Session** output channel.
@@ -53,6 +69,8 @@ Claude Code files a session under the directory it started in, so only sessions 
 | `claudeMultisession.lookbackHours` | `24` | Ignore sessions older than this |
 | `claudeMultisession.activeMinutes` | `10` | Sessions with activity in this window are "active" |
 | `claudeMultisession.groupByWorkspace` | `true` | Group the Sessions view by workspace (session cwd) |
+| `claudeMultisession.hookPort` | `47821` | Local port for the permission hooks (re-run **Install Permission Hooks** after changing) |
+| `claudeMultisession.notifyPermission` | `true` | Notify when a session starts waiting for a permission prompt |
 | `claudeMultisession.scope` | `all` | `workspace` limits the tree and graph to sessions whose cwd is in (or under) an open folder |
 
 ## Development
