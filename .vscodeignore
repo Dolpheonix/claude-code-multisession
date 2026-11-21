@@ -4,3 +4,4 @@ tsconfig.json
 **/*.map
 node_modules/**
 !node_modules/cytoscape/dist/cytoscape.min.js
+.claude/settings.local.json

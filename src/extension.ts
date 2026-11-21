@@ -1,3 +1,4 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { openInClaudeCode } from './claudeCode';
@@ -9,7 +10,7 @@ import { TranscriptWatcher } from './transcriptWatcher';
 import { ConflictsTreeProvider, Node, SessionsTreeProvider } from './treeViews';
 import { isInWorkspace, sessionLabel, visibleSessions } from './viewModel';
 import { WindowBridge } from './windowBridge';
-import { claudeHome, createSkill, SKILL_NAME_RE } from './skills';
+import { claudeHome, createSkill, installSkillFolder, SKILL_NAME_RE, skillFolderDiffers } from './skills';
 import { skillFolder, SkillNode, SkillsTreeProvider } from './skillsTree';
 
 const cfg = () => vscode.workspace.getConfiguration('claudeMultisession');
@@ -194,6 +195,11 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       const prompt = cfg().get<string>('wrapUpPrompt', '/wrap-up').trim() || '/wrap-up';
+      if (prompt.startsWith('/wrap-up') && !fs.existsSync(path.join(claudeHome(), 'skills', 'wrap-up', 'SKILL.md'))) {
+        void vscode.window
+          .showInformationMessage('The /wrap-up skill is not installed in ~/.claude/skills.', 'Install Globally')
+          .then((c) => c && vscode.commands.executeCommand('claudeMultisession.installWrapUpSkill'));
+      }
       if (!resumeAnywhere(s, prompt)) {
         await vscode.env.clipboard.writeText(prompt);
         void vscode.window.showWarningMessage(
@@ -201,6 +207,9 @@ export function activate(context: vscode.ExtensionContext): void {
         );
       }
     }),
+    vscode.commands.registerCommand('claudeMultisession.installWrapUpSkill', () =>
+      installWrapUpSkill(path.join(context.extensionPath, '.claude', 'skills', 'wrap-up'), log, skillsTree),
+    ),
     vscode.commands.registerCommand('claudeMultisession.openInClaude', (node?: Node) => {
       if (node?.type === 'session') {
         void openInClaudeCode(node.session.id, log);
@@ -235,6 +244,41 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   watcher.start();
+}
+
+/**
+ * Installs the /wrap-up skill bundled with this extension (the repo's .claude/skills/wrap-up) as a
+ * personal skill, so sessions in every folder can use it. Asks before overwriting a different copy.
+ */
+async function installWrapUpSkill(src: string, log: vscode.OutputChannel, tree: SkillsTreeProvider): Promise<void> {
+  const destRoot = path.join(claudeHome(), 'skills');
+  if (!fs.existsSync(path.join(src, 'SKILL.md'))) {
+    void vscode.window.showErrorMessage(`Bundled skill not found: ${src}`);
+    return;
+  }
+  if (skillFolderDiffers(src, destRoot)) {
+    const ok = await vscode.window.showWarningMessage(
+      `${path.join(destRoot, 'wrap-up')} already exists and differs from the extension's version. Overwrite it?`,
+      { modal: true },
+      'Overwrite',
+    );
+    if (!ok) {
+      return;
+    }
+  }
+  try {
+    const { dest, result } = installSkillFolder(src, destRoot);
+    log.appendLine(`[skills] wrap-up ${result}: ${dest}`);
+    tree.rescan();
+    const msg = {
+      created: `Installed /wrap-up in ${dest}. Every Claude Code session can use it now.`,
+      updated: `Updated /wrap-up in ${dest}.`,
+      same: `/wrap-up in ${dest} is already up to date.`,
+    }[result];
+    void vscode.window.showInformationMessage(msg);
+  } catch (e) {
+    void vscode.window.showErrorMessage(`Could not install /wrap-up: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 /** Ask where and what, create `<skills dir>/<name>/SKILL.md` from a template, and open it. */

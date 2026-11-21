@@ -57,7 +57,11 @@ The extension supports this:
 - **Wrap Up Session** (right-click a session): resumes the session in Claude Code, here or in the window that has its folder open, with `claudeMultisession.wrapUpPrompt` (default `/wrap-up`) in its input box. Claude Code 2.1.x puts it in the input box without sending it. If no window has the folder open, the prompt is copied to the clipboard.
 - **Conflicts**: a knowledge file edited by several sessions is marked `📘 knowledge`, since what those sessions recorded may conflict when their branches merge.
 
-This repo has its own [/wrap-up skill](.claude/skills/wrap-up/SKILL.md). It sorts what the session learned into CLAUDE.md, branch-only notes, and personal preferences, then updates CLAUDE.md and asks before committing. It is set to `disable-model-invocation`, so it runs only when you type it. Copy it into other repos (or into `~/.claude/skills/`) to use it there.
+The [/wrap-up skill](.claude/skills/wrap-up/SKILL.md) is kept in this repo and ships with the extension. It sorts what the session learned into CLAUDE.md, branch-only notes, and personal preferences, then updates CLAUDE.md and asks before committing. It is set to `disable-model-invocation`, so it runs only when you type it.
+
+Run **Claude Multi-Session: Install /wrap-up Skill Globally** to copy it to `~/.claude/skills/wrap-up/`, where sessions in every folder can use it. Run it again after the repo's copy changes: it reports "up to date" when nothing changed, and asks before overwriting a copy you edited. **Wrap Up Session** offers the install when the skill is missing.
+
+The repo copy alone only loads for sessions started in this repo (or its subfolders). Claude Code reads `.claude/skills` from the start folder and its parents. Skills in subfolders load only after Claude touches a file there, or after `/add-dir`.
 
 ### Skills
 

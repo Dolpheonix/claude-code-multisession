@@ -291,6 +291,46 @@ export function createSkill(skillsDir: string, name: string, description: string
   return file;
 }
 
+/**
+ * Copies a skill folder (SKILL.md plus any supporting files) into `destRoot/<name>`.
+ * Returns 'same' when every file is already identical (nothing written).
+ */
+export function installSkillFolder(srcDir: string, destRoot: string): { dest: string; result: 'created' | 'updated' | 'same' } {
+  const dest = path.join(destRoot, path.basename(srcDir));
+  const existed = fs.existsSync(dest);
+  const files = listFiles(srcDir);
+  const same = existed && files.every((rel) => sameFile(path.join(srcDir, rel), path.join(dest, rel)));
+  if (same) {
+    return { dest, result: 'same' };
+  }
+  for (const rel of files) {
+    fs.mkdirSync(path.dirname(path.join(dest, rel)), { recursive: true });
+    fs.copyFileSync(path.join(srcDir, rel), path.join(dest, rel));
+  }
+  return { dest, result: existed ? 'updated' : 'created' };
+}
+
+/** Whether `destRoot/<name>` exists and differs from the source (an install would overwrite something). */
+export function skillFolderDiffers(srcDir: string, destRoot: string): boolean {
+  const dest = path.join(destRoot, path.basename(srcDir));
+  return fs.existsSync(dest) && !listFiles(srcDir).every((rel) => sameFile(path.join(srcDir, rel), path.join(dest, rel)));
+}
+
+function listFiles(dir: string, prefix = ''): string[] {
+  return readdir(path.join(dir, prefix)).flatMap((e) => {
+    const rel = path.join(prefix, e);
+    return isDir(path.join(dir, rel)) ? listFiles(dir, rel) : [rel];
+  });
+}
+
+function sameFile(a: string, b: string): boolean {
+  try {
+    return fs.readFileSync(a).equals(fs.readFileSync(b));
+  } catch {
+    return false;
+  }
+}
+
 function readdir(dir: string): string[] {
   try {
     return fs.readdirSync(dir);
