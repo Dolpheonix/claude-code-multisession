@@ -24,7 +24,7 @@ The transcript format is not a public API. All format knowledge lives in [src/pa
 
 ## Features
 
-- **Sessions view**: active/idle sessions with their cwd folder, each listing the files it touched (✎ edits, 👁 reads)
+- **Sessions view**: sessions grouped by workspace (the folder each session started in), each listing the files it touched (✎ edits, 👁 reads). Folders open in this window are listed first. Turn grouping off with `claudeMultisession.groupByWorkspace`.
 - **Conflicts view**: files touched by 2+ sessions, with a badge count on the activity bar
 - **Graph**: a left-to-right layout. Sessions are in the left column and files in the right, and each session's files are grouped next to it. Files shared by several sessions are placed between those sessions' groups.
   - session label: title, then `cwd folder · branch`
@@ -48,6 +48,7 @@ Claude Code files a session under the directory it started in, so only sessions 
 | `claudeMultisession.projectsDir` | `~/.claude/projects` | Transcript root |
 | `claudeMultisession.lookbackHours` | `24` | Ignore sessions older than this |
 | `claudeMultisession.activeMinutes` | `10` | Sessions with activity in this window are "active" |
+| `claudeMultisession.groupByWorkspace` | `true` | Group the Sessions view by workspace (session cwd) |
 | `claudeMultisession.scope` | `all` | `workspace` limits the tree and graph to sessions whose cwd is in (or under) an open folder |
 
 ## Development
