@@ -43,6 +43,22 @@ The transcript format is not a public API. All format knowledge lives in [src/pa
   - filters: workspace dropdown (by session cwd), conflicts, show reads, shared files only, active sessions only. Filter choices are kept when the panel is reopened.
 - **Open in Claude Code**: clicking a session in the tree or the graph resumes it in the Claude Code extension when the session's cwd is exactly a workspace folder of the current window. If another VS Code window has that folder open, the session opens in that window and VS Code switches to it. Other sessions open their raw transcript instead. Right-click a session for **Open in Claude Code** / **Open Transcript**.
 
+### One branch per session: keeping project knowledge
+
+If each branch gets its own session, a new session starts without what earlier sessions learned. The knowledge should travel the same way as the code:
+
+- **Write it in CLAUDE.md on the branch.** Claude Code loads `CLAUDE.md` at the start of every session. A session updates it on its branch and commits it, so the knowledge reaches `main` with the merge, gets reviewed in the PR, and shows up as a git conflict if two branches disagree. Abandoned branches leave nothing behind.
+- **Branch-only context** (why this change, what is left) belongs in commit messages and the PR description. Personal preferences belong in `~/.claude/CLAUDE.md`, not the repo.
+- With git worktrees, Claude Code's automatic memory (`~/.claude/projects/<path>/memory/`) is separate for each worktree path. CLAUDE.md in the repo is not.
+
+The extension supports this:
+
+- **⚑ not wrapped up**: a session that edited files but none of the knowledge files (`claudeMultisession.knowledgeFiles`, default `CLAUDE.md`) gets this mark in the Sessions view. Knowledge files show a 📘 book icon. Only edits made through Claude's tools count.
+- **Wrap Up Session** (right-click a session): resumes the session in Claude Code, here or in the window that has its folder open, with `claudeMultisession.wrapUpPrompt` (default `/wrap-up`) in its input box. Claude Code 2.1.x puts it in the input box without sending it. If no window has the folder open, the prompt is copied to the clipboard.
+- **Conflicts**: a knowledge file edited by several sessions is marked `📘 knowledge`, since what those sessions recorded may conflict when their branches merge.
+
+This repo has its own [/wrap-up skill](.claude/skills/wrap-up/SKILL.md). It sorts what the session learned into CLAUDE.md, branch-only notes, and personal preferences, then updates CLAUDE.md and asks before committing. It is set to `disable-model-invocation`, so it runs only when you type it. Copy it into other repos (or into `~/.claude/skills/`) to use it there.
+
 ### Skills
 
 The **Skills** view lists the skills and custom slash commands Claude Code can load, grouped by where they live:
@@ -101,6 +117,8 @@ The extension API cannot see or message other windows, so the windows coordinate
 | `claudeMultisession.groupByWorkspace` | `true` | Group the Sessions view by workspace (session cwd) |
 | `claudeMultisession.hookPort` | `47821` | Local port for the permission hooks (re-run **Install Permission Hooks** after changing) |
 | `claudeMultisession.notifyPermission` | `true` | Notify when a session starts waiting for a permission prompt |
+| `claudeMultisession.knowledgeFiles` | `["CLAUDE.md"]` | Files where sessions record what they learned (file name or path suffix). Sessions that edited files but none of these are marked "not wrapped up" |
+| `claudeMultisession.wrapUpPrompt` | `/wrap-up` | Prompt that **Wrap Up Session** puts in the Claude Code input box |
 | `claudeMultisession.scope` | `all` | `workspace` limits the tree and graph to sessions whose cwd is in (or under) an open folder |
 
 ## Development

@@ -5,6 +5,9 @@ import {
   includedSessions,
   isActive,
   isInWorkspace,
+  isKnowledgeFile,
+  knowledgePatterns,
+  knowledgeStatus,
   sessionLabel,
   visibleSessions,
   repoRelativeDir,
@@ -83,6 +86,7 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
           isActive(s),
           this.store.isIncluded(s.id),
           waiting ? `${waiting.since}:${waiting.summary}` : '',
+          knowledgeStatus(s),
           s.files.size,
           reads,
           edits,
@@ -199,11 +203,21 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
     if (waiting) {
       status = `🔔 ${waiting.summary}`;
     }
-    item.description = `${folder}${status} · ${s.files.size} files · ${timeAgo(s.lastTs)}`;
+    const knowledge = knowledgeStatus(s);
+    const wrap = knowledge === 'missing' ? ' · ⚑ not wrapped up' : '';
+    item.description = `${folder}${status} · ${s.files.size} files${wrap} · ${timeAgo(s.lastTs)}`;
     const md = new vscode.MarkdownString(`**${sessionLabel(s)}**\n\n- id: \`${s.id}\`\n- cwd: \`${s.cwd ?? '?'}\``);
     if (waiting) {
       md.appendMarkdown(`\n\n**🔔 Waiting for permission** (${timeAgo(waiting.since)}): `);
       md.appendText(waiting.summary);
+    }
+    if (knowledge === 'missing') {
+      md.appendMarkdown(
+        `\n\n**⚑ Not wrapped up**: edited files but no knowledge file (${knowledgePatterns().join(', ')}). ` +
+          'Right-click → **Wrap Up Session** before merging.',
+      );
+    } else if (knowledge === 'captured') {
+      md.appendMarkdown('\n\n📘 Updated a knowledge file.');
     }
     item.tooltip = md;
     item.iconPath = waiting ? new vscode.ThemeIcon('bell-dot', new vscode.ThemeColor('charts.yellow')) : activityIcon(active);
@@ -232,9 +246,7 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
     item.description = [counts, dir].filter(Boolean).join('  ');
     item.tooltip = node.display;
     item.resourceUri = vscode.Uri.file(node.display);
-    item.iconPath = node.shared
-      ? new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.orange'))
-      : vscode.ThemeIcon.File;
+    item.iconPath = fileIcon(node.key, node.shared ? 'charts.orange' : undefined);
     item.command = { command: 'vscode.open', title: 'Open', arguments: [vscode.Uri.file(node.display)] };
     return item;
   }
@@ -274,15 +286,26 @@ export class ConflictsTreeProvider extends GatedTreeProvider<FileInfo> {
     });
     const firstCwd = this.store.sessions.get([...f.touches.keys()][0])?.cwd;
     const dir = repoRelativeDir(f.displayPath, firstCwd);
-    item.description = [dir, `${f.touches.size} sessions`].filter(Boolean).join(' · ');
-    item.tooltip = `${f.displayPath}\n\n${names.join('\n')}`;
-    item.iconPath = new vscode.ThemeIcon(
-      level === 'writeWrite' ? 'error' : 'warning',
-      new vscode.ThemeColor(level === 'writeWrite' ? 'charts.red' : 'charts.orange'),
-    );
+    const knowledge = isKnowledgeFile(f.key);
+    item.description = [knowledge ? '📘 knowledge' : '', dir, `${f.touches.size} sessions`].filter(Boolean).join(' · ');
+    item.tooltip = `${f.displayPath}\n\n${names.join('\n')}${
+      knowledge ? '\n\nKnowledge file: what these sessions recorded may conflict when their branches merge.' : ''
+    }`;
+    const ww = level === 'writeWrite';
+    const color = ww ? 'charts.red' : 'charts.orange';
+    const icon = ww ? 'error' : 'warning';
+    item.iconPath = knowledge ? fileIcon(f.key, color) : new vscode.ThemeIcon(icon, new vscode.ThemeColor(color));
     item.command = { command: 'vscode.open', title: 'Open', arguments: [vscode.Uri.file(f.displayPath)] };
     return item;
   }
+}
+
+/** Book icon for knowledge files (CLAUDE.md, …), warning for other shared files, else the file icon. */
+function fileIcon(key: string, color?: string): vscode.ThemeIcon {
+  if (isKnowledgeFile(key)) {
+    return new vscode.ThemeIcon('book', color ? new vscode.ThemeColor(color) : undefined);
+  }
+  return color ? new vscode.ThemeIcon('warning', new vscode.ThemeColor(color)) : vscode.ThemeIcon.File;
 }
 
 function activityIcon(active: boolean): vscode.ThemeIcon {

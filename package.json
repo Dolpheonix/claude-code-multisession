@@ -16,6 +16,7 @@
       { "command": "claudeMultisession.openSession", "title": "Open Session", "category": "Claude Multi-Session" },
       { "command": "claudeMultisession.openInClaude", "title": "Open in Claude Code", "category": "Claude Multi-Session", "icon": "$(comment-discussion)" },
       { "command": "claudeMultisession.openTranscript", "title": "Open Transcript", "category": "Claude Multi-Session", "icon": "$(file-text)" },
+      { "command": "claudeMultisession.wrapUp", "title": "Wrap Up Session", "category": "Claude Multi-Session", "icon": "$(book)" },
       { "command": "claudeMultisession.installPermissionHook", "title": "Install Permission Hooks", "category": "Claude Multi-Session" },
       { "command": "claudeMultisession.uninstallPermissionHook", "title": "Uninstall Permission Hooks", "category": "Claude Multi-Session" },
       { "command": "claudeMultisession.newSkill", "title": "New Skill", "category": "Claude Multi-Session", "icon": "$(add)" },
@@ -45,12 +46,14 @@
         { "command": "claudeMultisession.openInClaude", "when": "view == claudeMultisession.sessions && viewItem == session.workspace", "group": "inline" },
         { "command": "claudeMultisession.openInClaude", "when": "view == claudeMultisession.sessions && viewItem == session.workspace", "group": "navigation@1" },
         { "command": "claudeMultisession.openTranscript", "when": "view == claudeMultisession.sessions && viewItem =~ /^session/", "group": "navigation@2" },
+        { "command": "claudeMultisession.wrapUp", "when": "view == claudeMultisession.sessions && viewItem =~ /^session/", "group": "navigation@3" },
         { "command": "claudeMultisession.revealSkill", "when": "view == claudeMultisession.skills && viewItem =~ /^skill/", "group": "navigation@1" }
       ],
       "commandPalette": [
         { "command": "claudeMultisession.openSession", "when": "false" },
         { "command": "claudeMultisession.openInClaude", "when": "false" },
         { "command": "claudeMultisession.openTranscript", "when": "false" },
+        { "command": "claudeMultisession.wrapUp", "when": "false" },
         { "command": "claudeMultisession.revealSkill", "when": "false" }
       ]
     },
@@ -86,6 +89,17 @@
           "type": "boolean",
           "default": true,
           "description": "Show a notification when a session starts waiting for a permission prompt (requires the permission hooks)."
+        },
+        "claudeMultisession.knowledgeFiles": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["CLAUDE.md"],
+          "description": "Files where sessions record what they learned. A file name (CLAUDE.md) or a path suffix (docs/architecture.md). Sessions that edited other files but none of these are marked 'not wrapped up'."
+        },
+        "claudeMultisession.wrapUpPrompt": {
+          "type": "string",
+          "default": "/wrap-up",
+          "description": "Prompt put in the Claude Code input box by 'Wrap Up Session'."
         },
         "claudeMultisession.scope": {
           "type": "string",

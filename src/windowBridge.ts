@@ -32,6 +32,8 @@ interface OpenRequest {
   sessionId: string;
   cwd: string;
   ts: number;
+  /** Initial prompt for Claude Code (e.g. "/wrap-up"). */
+  prompt?: string;
 }
 
 export class WindowBridge implements vscode.Disposable {
@@ -45,7 +47,7 @@ export class WindowBridge implements vscode.Disposable {
   constructor(
     storageDir: string,
     private readonly log: vscode.OutputChannel,
-    private readonly onRequest: (sessionId: string) => void,
+    private readonly onRequest: (sessionId: string, prompt?: string) => void,
   ) {
     this.windowsDir = path.join(storageDir, 'windows');
     this.requestsDir = path.join(storageDir, 'requests');
@@ -82,8 +84,8 @@ export class WindowBridge implements vscode.Disposable {
   }
 
   /** Ask `target` to open the session, then bring that window to the front. */
-  async requestOpen(target: WindowInfo, sessionId: string, cwd: string): Promise<void> {
-    const req: OpenRequest = { sessionId, cwd, ts: Date.now() };
+  async requestOpen(target: WindowInfo, sessionId: string, cwd: string, prompt?: string): Promise<void> {
+    const req: OpenRequest = { sessionId, cwd, ts: Date.now(), prompt };
     const dir = path.join(this.requestsDir, target.id);
     fs.mkdirSync(dir, { recursive: true });
     const tmp = path.join(dir, `${crypto.randomUUID()}.tmp`);
@@ -173,7 +175,7 @@ export class WindowBridge implements vscode.Disposable {
         continue;
       }
       this.log.appendLine(`[bridge] request from another window: open ${req.sessionId}`);
-      this.onRequest(req.sessionId);
+      this.onRequest(req.sessionId, typeof req.prompt === 'string' ? req.prompt : undefined);
     }
   }
 

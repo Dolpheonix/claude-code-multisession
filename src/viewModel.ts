@@ -51,6 +51,43 @@ export function sessionLabel(s: Session): string {
  * `exact` = cwd must be the folder itself (what Claude Code can resume in this window);
  * otherwise subfolders count too.
  */
+/**
+ * Knowledge files (`claudeMultisession.knowledgeFiles`): where a session should record what it learned,
+ * e.g. CLAUDE.md. A pattern is a file name ("CLAUDE.md") or a path suffix ("docs/architecture.md").
+ */
+export function knowledgePatterns(): string[] {
+  return cfg().get<string[]>('knowledgeFiles', ['CLAUDE.md']).filter((p) => typeof p === 'string' && p.trim());
+}
+
+export function isKnowledgeFile(key: string, patterns = knowledgePatterns()): boolean {
+  const k = fileKey(key);
+  return patterns.some((p) => {
+    const suffix = path.normalize(p.trim()).replace(/^[\\/]+/, '');
+    const s = process.platform === 'win32' || process.platform === 'darwin' ? suffix.toLowerCase() : suffix;
+    return k === s || k.endsWith(path.sep + s);
+  });
+}
+
+/**
+ * Whether a session wrote down what it learned:
+ *  - 'captured': it edited a knowledge file
+ *  - 'missing': it edited other files but no knowledge file (not wrapped up yet)
+ *  - 'none': it edited nothing
+ */
+export function knowledgeStatus(s: Session, patterns = knowledgePatterns()): 'captured' | 'missing' | 'none' {
+  let code = false;
+  for (const [key, t] of s.files) {
+    if (t.edits === 0) {
+      continue;
+    }
+    if (isKnowledgeFile(key, patterns)) {
+      return 'captured';
+    }
+    code = true;
+  }
+  return code ? 'missing' : 'none';
+}
+
 export function isInWorkspace(s: Session, exact = false): boolean {
   if (!s.cwd) {
     return false;

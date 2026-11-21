@@ -96,7 +96,31 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   // Sessions whose folder is open in another VS Code window are opened there.
-  const bridge = new WindowBridge(context.globalStorageUri.fsPath, log, (id) => void openInClaudeCode(id, log));
+  const bridge = new WindowBridge(context.globalStorageUri.fsPath, log, (id, prompt) => void openInClaudeCode(id, log, prompt));
+
+  /** Session from a tree node or a session id (graph webview, notifications). */
+  const sessionOf = (arg?: Node | string): Session | undefined => {
+    if (typeof arg === 'string') {
+      return store.sessions.get(arg);
+    }
+    return arg?.type === 'session' ? arg.session : undefined;
+  };
+  /**
+   * Resume in Claude Code: here if the session belongs to this window's workspace, else in the window
+   * that has its folder open. Returns false if neither applies.
+   */
+  const resumeAnywhere = (s: Session, prompt?: string): boolean => {
+    if (isInWorkspace(s, true)) {
+      void openInClaudeCode(s.id, log, prompt);
+      return true;
+    }
+    const other = s.cwd ? bridge.findWindowFor(s.cwd) : undefined;
+    if (other && s.cwd) {
+      void bridge.requestOpen(other, s.id, s.cwd, prompt);
+      return true;
+    }
+    return false;
+  };
   bridge.start();
 
   // Skills: scanned from disk, re-scanned when SKILL.md / command files change.
@@ -151,12 +175,7 @@ export function activate(context: vscode.ExtensionContext): void {
     // has its folder open; else show the transcript.
     // Accepts a tree node or a session id (from the graph webview).
     vscode.commands.registerCommand('claudeMultisession.openSession', (arg?: Node | string) => {
-      let s: Session | undefined;
-      if (typeof arg === 'string') {
-        s = store.sessions.get(arg);
-      } else if (arg?.type === 'session') {
-        s = arg.session;
-      }
+      const s = sessionOf(arg);
       if (!s) {
         log.appendLine(`[click] ignored: no session for ${typeof arg === 'string' ? arg : arg?.type}`);
         return;
@@ -164,13 +183,22 @@ export function activate(context: vscode.ExtensionContext): void {
       const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri.fsPath);
       const resumable = isInWorkspace(s, true);
       log.appendLine(`[click] session=${s.id} cwd=${s.cwd ?? '?'} workspace=[${folders.join(', ')}] resumable=${resumable}`);
-      const other = !resumable && s.cwd ? bridge.findWindowFor(s.cwd) : undefined;
-      if (resumable) {
-        void openInClaudeCode(s.id, log);
-      } else if (other && s.cwd) {
-        void bridge.requestOpen(other, s.id, s.cwd);
-      } else if (s.transcriptPath) {
+      if (!resumeAnywhere(s) && s.transcriptPath) {
         void vscode.commands.executeCommand('vscode.open', vscode.Uri.file(s.transcriptPath));
+      }
+    }),
+    // Resume the session with the wrap-up prompt (default "/wrap-up") in its input box.
+    vscode.commands.registerCommand('claudeMultisession.wrapUp', async (arg?: Node | string) => {
+      const s = sessionOf(arg);
+      if (!s) {
+        return;
+      }
+      const prompt = cfg().get<string>('wrapUpPrompt', '/wrap-up').trim() || '/wrap-up';
+      if (!resumeAnywhere(s, prompt)) {
+        await vscode.env.clipboard.writeText(prompt);
+        void vscode.window.showWarningMessage(
+          `No VS Code window has ${s.cwd ?? 'this session\'s folder'} open. Open that folder, resume the session, and paste "${prompt}" (copied to the clipboard).`,
+        );
       }
     }),
     vscode.commands.registerCommand('claudeMultisession.openInClaude', (node?: Node) => {

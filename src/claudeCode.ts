@@ -5,15 +5,22 @@ import * as vscode from 'vscode';
  *
  * NOTE: Neither entry point is a documented public API; both were found in
  * anthropic.claude-code 2.1.x and may change. Keep that knowledge in this file.
- *  - command `claude-vscode.editor.open(sessionId?, initialPrompt?, ...)` opens/focuses a session tab
+ *  - command `claude-vscode.editor.open(sessionId?, initialPrompt?, ...)` opens/focuses a session tab;
+ *    initialPrompt is set on the session (shown in its input box, not sent)
  *  - URI `vscode://anthropic.claude-code/open?session=<id>` does the same via the URI handler
  */
 const EXTENSION_ID = 'anthropic.claude-code';
 const OPEN_COMMAND = 'claude-vscode.editor.open';
 
-export async function openInClaudeCode(sessionId: string, log: vscode.OutputChannel): Promise<void> {
+/**
+ * Opens the session in Claude Code. `prompt` is handed to Claude Code as the session's initial prompt
+ * (in 2.1.x it lands in the input box). The URI fallback cannot carry it, so it goes to the clipboard.
+ */
+export async function openInClaudeCode(sessionId: string, log: vscode.OutputChannel, prompt?: string): Promise<void> {
   const ext = vscode.extensions.getExtension(EXTENSION_ID);
-  log.appendLine(`[open] session=${sessionId} claudeCode=${ext ? `${ext.packageJSON.version} active=${ext.isActive}` : 'not installed'}`);
+  const version = ext ? `${ext.packageJSON.version} active=${ext.isActive}` : 'not installed';
+  const promptInfo = prompt ? ' prompt=' + JSON.stringify(prompt) : '';
+  log.appendLine(`[open] session=${sessionId} claudeCode=${version}${promptInfo}`);
   if (!ext) {
     void vscode.window.showWarningMessage('Claude Code extension is not installed.');
     return;
@@ -22,7 +29,7 @@ export async function openInClaudeCode(sessionId: string, log: vscode.OutputChan
     if (!ext.isActive) {
       await ext.activate();
     }
-    await vscode.commands.executeCommand(OPEN_COMMAND, sessionId);
+    await vscode.commands.executeCommand(OPEN_COMMAND, sessionId, prompt);
     log.appendLine(`[open] ${OPEN_COMMAND} ok`);
     return;
   } catch (e) {
@@ -31,6 +38,10 @@ export async function openInClaudeCode(sessionId: string, log: vscode.OutputChan
   const uri = vscode.Uri.parse(`${vscode.env.uriScheme}://${EXTENSION_ID}/open?session=${encodeURIComponent(sessionId)}`);
   const ok = await vscode.env.openExternal(uri);
   log.appendLine(`[open] fallback ${uri.toString()} -> ${ok}`);
+  if (ok && prompt) {
+    await vscode.env.clipboard.writeText(prompt);
+    void vscode.window.showInformationMessage(`Copied "${prompt}" to the clipboard: paste it into the session.`);
+  }
   if (!ok) {
     void vscode.window.showErrorMessage(`Could not open session ${sessionId.slice(0, 8)} in Claude Code.`);
   }
