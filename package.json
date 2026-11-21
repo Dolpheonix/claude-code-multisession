@@ -119,7 +119,8 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile",
+    "package": "npx --yes @vscode/vsce@4 package --allow-missing-repository --skip-license --no-rewrite-relative-links"
   },
   "dependencies": {
     "cytoscape": "^3.30.0"

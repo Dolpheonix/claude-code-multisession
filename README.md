@@ -10,6 +10,78 @@
 - **스킬**: Claude Code가 불러올 수 있는 스킬과 커스텀 명령, 사용 횟수와 켜짐/꺼짐 상태
 - **어디서든 열기**: 세션을 클릭하면, 그 폴더를 연 VS Code 창에서 Claude Code 세션을 이어서 엶
 
+## 설치
+
+마켓에 올리지 않은 확장이라, 저장소에서 `.vsix` 파일을 만들어 설치합니다. VS Code와 Antigravity 모두 같은 `.vsix`를 씁니다.
+
+### 준비물
+
+- Node.js와 npm: `.vsix`를 만들 때만 필요합니다. 만든 파일은 다른 PC로 옮겨 설치해도 됩니다.
+- 설치할 에디터에 **Claude Code 확장**이 있어야 합니다. 없어도 Sessions/Conflicts/그래프/Skills 뷰는 동작하지만, 세션 열기, **Wrap Up Session**, 보관한 세션 숨기기는 이 확장을 씁니다.
+- 허가 요청 표시를 쓰려면 Claude Code 2.1.295 이상이 필요합니다.
+
+### 1. `.vsix` 만들기
+
+저장소 폴더에서 실행합니다.
+
+```sh
+npm install
+npm run package
+```
+
+`claude-code-multisession-0.0.1.vsix`가 생깁니다. `npm run package`는 `npx @vscode/vsce@4 package`를 다음 옵션과 함께 실행합니다. 컴파일은 패키징 과정에서 자동으로 됩니다(`vscode:prepublish`).
+
+- `--allow-missing-repository`, `--skip-license`: `package.json`에 저장소 주소가 없고 LICENSE 파일이 없어서 vsce가 확인을 묻는 것을 건너뜁니다.
+- `--no-rewrite-relative-links`: vsce는 README의 상대 링크(`src/parser.ts` 등)를 저장소 주소 기준의 절대 링크로 바꾸려 합니다. 저장소 주소가 없으면 오류를 내므로, 링크를 그대로 둡니다.
+
+### 2-A. VS Code에 설치
+
+- Extensions 뷰 → 오른쪽 위 `…` → **Install from VSIX…** → `.vsix` 선택
+- 또는 터미널에서:
+
+  ```sh
+  code --install-extension claude-code-multisession-0.0.1.vsix
+  ```
+
+설치한 뒤 열려 있는 창마다 **Developer: Reload Window**를 실행합니다. 사용자 단위로 설치되므로 모든 창에서 동작합니다.
+
+### 2-B. Antigravity에 설치
+
+- Extensions 뷰 → 오른쪽 위 `…` → **Install from VSIX…** → `.vsix` 선택
+- 또는 터미널에서(Antigravity IDE의 명령 이름은 `antigravity-ide`):
+
+  ```sh
+  antigravity-ide --install-extension claude-code-multisession-0.0.1.vsix
+  ```
+
+설치한 뒤 창을 다시 로드합니다. VS Code와 다른 점은 다음과 같습니다.
+
+- Claude Code 확장도 Antigravity에 따로 설치되어 있어야 합니다.
+- Antigravity IDE 1.1.x(VS Code 1.107 기반, Node 22)에서 확인했습니다. Node 22에서는 보관한 세션 목록을 처음 읽을 때 "SQLite is an experimental feature" 경고가 로그에 한 번 찍힐 수 있지만, 동작에는 문제가 없습니다.
+- VS Code와 Antigravity를 **동시에** 쓰는 것은 고려하지 않았습니다. 두 앱은 확장 저장소가 달라서, 허가 요청 표시와 다른 창에서 열기가 앱 사이에서는 동작하지 않습니다.
+
+### 3. 설치 후 설정 (한 번만)
+
+명령 팔레트(`Ctrl+Shift+P`)에서 실행합니다.
+
+1. **Claude Multi-Session: Install Permission Hooks**: 허가 요청 표시용 hook을 `~/.claude/settings.json`에 추가합니다. 확인 창에서 추가될 내용을 보여 주고, 기존 파일은 `settings.json.multisession-backup`으로 백업합니다. hook을 설치한 뒤에 새로 시작한 세션부터 적용됩니다.
+2. **Claude Multi-Session: Install /wrap-up Skill Globally**: `/wrap-up` 스킬을 `~/.claude/skills/wrap-up/`에 설치합니다. 어느 폴더에서 시작한 세션이든 `/wrap-up`을 쓸 수 있게 됩니다.
+3. 작업하는 저장소마다 `CLAUDE.md`에 대상 브랜치를 한 줄 적어 두면, `/wrap-up`이 매번 묻지 않습니다. 예: ``Feature branches merge into `product`.``
+
+활동 표시줄의 **Claude Sessions** 아이콘을 열면 세션 목록이 보입니다. 필요하면 [설정](#설정)에서 `lookbackHours`(기본 24시간) 등을 조정합니다.
+
+### 업데이트
+
+1. 저장소를 최신으로 받고 1단계로 `.vsix`를 다시 만듭니다.
+2. 2-A/2-B와 같은 방법으로 설치합니다(덮어써짐). 그리고 창을 다시 로드합니다.
+3. `/wrap-up` 스킬이 바뀌었을 수 있으니 **Install /wrap-up Skill Globally**를 다시 실행합니다. 바뀐 게 없으면 "up to date"라고만 나옵니다.
+
+### 제거
+
+1. **Claude Multi-Session: Uninstall Permission Hooks**: `~/.claude/settings.json`에서 이 확장이 넣은 hook만 지웁니다. 확장을 먼저 지우면 hook이 남습니다. 남아도 요청이 바로 실패하고 Claude Code는 평소처럼 동작하지만, 깔끔하게 지우려면 이 명령을 먼저 실행하세요.
+2. Extensions 뷰에서 **Claude Code Multi-Session Monitor**를 제거합니다.
+3. `/wrap-up` 스킬도 지우려면 `~/.claude/skills/wrap-up/` 폴더를 지웁니다.
+
 ## 동작 방식
 
 Claude Code는 세션마다 대화 기록을 `~/.claude/projects/<project>/<session-id>.jsonl`에 남깁니다. 확장은 이 파일들을 따라 읽으면서(`fs.watch`와 5초 간격 확인) 다음을 뽑아냅니다.
@@ -165,6 +237,9 @@ VS Code에서 **F5**를 눌러 Extension Development Host를 띄운 뒤, 활동 
 - **세션을 클릭해도 아무 일이 없음.** **Claude Multi-Session** 출력 채널을 확인하세요. 클릭할 때마다 `[click] … resumable=…` 줄(세션 cwd와 비교한 워크스페이스 폴더 포함)이 찍히고, 이어서 `[open]` 줄이 찍힙니다. 다른 창으로 넘길 때는 양쪽 창에 `[bridge]` 줄이 찍힙니다.
 - **허가 요청에 🔔가 안 뜸.** 출력 채널에 hook이 설치되지 않았다고 나오면 **Install Permission Hooks**를 실행하세요. 이미 실행 중이던 세션은 새 hook을 못 읽을 수 있으니 새 세션으로 시도해 보세요. 허가 요청이 들어오면 출력 채널에 `[hook]` 줄이 찍힙니다.
 - **세션에서 `/wrap-up`(또는 다른 프로젝트 스킬)이 안 보임.** Claude Code는 세션을 시작한 폴더와 그 상위 폴더에서만 프로젝트 스킬을 읽고, 하위 폴더에서는 읽지 않습니다. 이 저장소의 상위 폴더에서 시작한 세션은, Claude가 저장소 안의 파일을 건드리거나 `/add-dir`을 실행하기 전까지 저장소의 스킬을 못 봅니다. `/wrap-up`은 **Install /wrap-up Skill Globally**를 실행하면 해결됩니다. 그래도 안 보이면 `/reload-skills`를 실행하세요.
+
+- **`.vsix` 설치 중 `Please restart VS Code before reinstalling Claude Code Multi-Session Monitor`가 재시작 후에도 계속 남.** 예전에 설치했던 흔적(예: 개발 중 만든 junction을 지운 경우)이 `~/.vscode/extensions/extensions.json`에 남아, 폴더가 없는데도 설치된 것으로 기록된 경우입니다. 이 파일을 백업한 뒤 `"id":"local.claude-code-multisession"` 항목만 지우고 다시 설치하세요. Antigravity는 `~/.antigravity-ide/extensions/extensions.json`입니다.
+- **`antigravity-ide --install-extension`이 `Error loading V8 startup snapshot file`로 실패함.** Antigravity 업데이트가 중간에 멈춰 설치 폴더에 실행 파일만 남은 상태입니다(`snapshot_blob.bin`, `resources` 등이 업데이트 작업 폴더 `_`에 남아 있음). Antigravity 창을 모두 닫고 설치 파일로 다시 설치한 뒤 시도하세요.
 
 ## 로드맵
 
