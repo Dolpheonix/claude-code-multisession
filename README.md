@@ -24,12 +24,14 @@ The transcript format is not a public API. All format knowledge lives in [src/pa
 | [src/repoRoot.ts](src/repoRoot.ts) | Finding (and caching) the git repo root of a file, for display paths |
 | [src/permissions.ts](src/permissions.ts) | Permission-prompt hooks: local receiver, shared events file, hook install/uninstall |
 | [src/windowBridge.ts](src/windowBridge.ts) | Asking another VS Code window to open a session |
+| [src/skills.ts](src/skills.ts) + [src/skillsTree.ts](src/skillsTree.ts) | Finding skills / custom commands on disk; Skills view with usage counts |
 
 ## Features
 
 - **Sessions view**: sessions grouped by workspace (the folder each session started in), each listing the files it touched (✎ edits, 👁 reads). Folders open in this window are listed first. Turn grouping off with `claudeMultisession.groupByWorkspace`.
   - Each session has a checkbox. Unchecking it leaves the session in this list but **excludes it from the graph and from conflict detection**. Use this for finished work that no longer matters when you check what merging the remaining branches will affect. A workspace group's checkbox toggles all of its sessions. The excluded set is kept across restarts.
 - **Conflicts view**: files touched by 2+ included sessions, with a badge count on the activity bar
+- **Skills view**: skills and custom commands on disk with usage counts (see [Skills](#skills))
 - **Graph**: a left-to-right layout. Sessions are in the left column and files in the right, and each session's files are grouped next to it. Files shared by several sessions are placed between those sessions' groups.
   - session label: title, then the cwd folder
   - file label: path from the root of the git repo that contains it (the nearest folder with a `.git` directory or file, so worktrees count too), e.g. `my-repo/src/a.ts`. It looks the same in every window. Files outside any repo show the path from the session's cwd. Long paths are shortened from the left. The trees show the same folders next to each file name. Repo roots are cached; **Rescan Transcripts** clears the cache after a `git init`.
@@ -40,6 +42,31 @@ The transcript format is not a public API. All format knowledge lives in [src/pa
   - hover to highlight a node's neighbors and see a tooltip (full cwd for sessions, full path for files)
   - filters: workspace dropdown (by session cwd), conflicts, show reads, shared files only, active sessions only. Filter choices are kept when the panel is reopened.
 - **Open in Claude Code**: clicking a session in the tree or the graph resumes it in the Claude Code extension when the session's cwd is exactly a workspace folder of the current window. If another VS Code window has that folder open, the session opens in that window and VS Code switches to it. Other sessions open their raw transcript instead. Right-click a session for **Open in Claude Code** / **Open Transcript**.
+
+### Skills
+
+The **Skills** view lists the skills and custom slash commands Claude Code can load, grouped by where they live:
+
+| Group | Location | Editable |
+| --- | --- | --- |
+| Project · *folder* | `<workspace folder>/.claude/skills/<name>/SKILL.md` and `.claude/commands/**.md` | yes |
+| Personal | `~/.claude/skills/<name>/SKILL.md` | yes |
+| Custom commands | `~/.claude/commands/**.md` (the older single-file format; subfolders become `sub/name`) | yes |
+| Plugins | `skills/<name>/SKILL.md` inside installed plugins under `~/.claude/plugins` | 🔒 overwritten by plugin updates |
+| claude.ai (synced) | `~/.claude/skills/synced/…`: skills synced from your claude.ai account | 🔒 overwritten by sync |
+
+- Each entry shows its frontmatter `description`. Click it to open the file, or right-click for **Reveal in File Explorer**.
+- **Usage**: `3×` means the skill was used 3 times by **this workspace's sessions** (cwd in or under an open folder) within the `lookbackHours` window. That counts both Claude invoking it with the `Skill` tool and you typing `/name`. The tooltip lists the sessions and also gives the total across all workspaces. Namespaced uses such as `anthropic-skills:docx` count toward `docx` for plugin and synced skills.
+- **Used, not on disk**: skills that Claude invoked in this workspace's sessions but that have no `SKILL.md` here, such as skills bundled with Claude Code itself. Other workspaces are left out, since their project skills are not listed here.
+- **On/off state**: read from the same settings Claude Code uses, merged per open folder (user `~/.claude/settings.json` < project `.claude/settings.json` < local `.claude/settings.local.json`, key by key). Managed (enterprise) settings are not read.
+  - `[off]` (greyed icon): a skill set to `"off"` in `skillOverrides`, or a plugin set to `false` in `enabledPlugins` (key `<plugin>@<marketplace>`, from the `cache/<marketplace>/<plugin>/<version>/` folder). A plugin whose manifest says `defaultEnabled: false` is also off unless `enabledPlugins` turns it on.
+  - `[off in some folders]`: with several folders open, the skill is off for sessions in some of them. The tooltip names them.
+  - `[name-only]` / `[user-invocable-only]`: other `skillOverrides` modes.
+  - Project skills are checked only against their own folder's settings.
+- **New Skill** (＋ in the view title) asks for a location (a project folder or Personal), a name (lowercase letters, digits, hyphens), and a description. It then creates `<name>/SKILL.md` from a template and opens it.
+- The view rescans when files under those folders change; **Rescan Skills** forces it.
+
+The view only displays this state. Change it in the settings files (or with `/plugin` for plugins); the view picks up the change.
 
 ### Permission prompts
 

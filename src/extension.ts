@@ -9,6 +9,8 @@ import { TranscriptWatcher } from './transcriptWatcher';
 import { ConflictsTreeProvider, Node, SessionsTreeProvider } from './treeViews';
 import { isInWorkspace, sessionLabel, visibleSessions } from './viewModel';
 import { WindowBridge } from './windowBridge';
+import { claudeHome, createSkill, SKILL_NAME_RE } from './skills';
+import { skillFolder, SkillNode, SkillsTreeProvider } from './skillsTree';
 
 const cfg = () => vscode.workspace.getConfiguration('claudeMultisession');
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -97,10 +99,41 @@ export function activate(context: vscode.ExtensionContext): void {
   const bridge = new WindowBridge(context.globalStorageUri.fsPath, log, (id) => void openInClaudeCode(id, log));
   bridge.start();
 
+  // Skills: scanned from disk, re-scanned when SKILL.md / command files change.
+  const skillsTree = new SkillsTreeProvider(store);
+  const skillsView = vscode.window.createTreeView('claudeMultisession.skills', { treeDataProvider: skillsTree });
+  let rescanTimer: NodeJS.Timeout | undefined;
+  const rescanSkillsSoon = () => {
+    clearTimeout(rescanTimer);
+    rescanTimer = setTimeout(() => skillsTree.rescan(), 300);
+  };
+  const skillWatchers = [
+    // Skill files, plus the settings that turn skills/plugins off (skillOverrides, enabledPlugins).
+    new vscode.RelativePattern(vscode.Uri.file(claudeHome()), '{skills/**,commands/**,plugins/**/SKILL.md,settings.json}'),
+    '**/.claude/{skills/**,commands/**,settings.json,settings.local.json}',
+  ].map((pattern) => {
+    const w = vscode.workspace.createFileSystemWatcher(pattern);
+    w.onDidCreate(rescanSkillsSoon);
+    w.onDidChange(rescanSkillsSoon);
+    w.onDidDelete(rescanSkillsSoon);
+    return w;
+  });
+
   context.subscriptions.push(
     log,
     permissions,
     bridge,
+    skillsTree,
+    skillsView,
+    ...skillWatchers,
+    { dispose: () => clearTimeout(rescanTimer) },
+    vscode.commands.registerCommand('claudeMultisession.refreshSkills', () => skillsTree.rescan()),
+    vscode.commands.registerCommand('claudeMultisession.newSkill', () => newSkill(skillsTree)),
+    vscode.commands.registerCommand('claudeMultisession.revealSkill', (node?: SkillNode) => {
+      if (node?.type === 'skill') {
+        void vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(skillFolder(node.skill)));
+      }
+    }),
     vscode.commands.registerCommand('claudeMultisession.installPermissionHook', () => installHook(hookPort(), log)),
     vscode.commands.registerCommand('claudeMultisession.uninstallPermissionHook', () => uninstallHook(log)),
     store,
@@ -152,6 +185,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      skillsTree.rescan();
       sessionsTree.refresh();
       conflictsTree.refresh();
     }),
@@ -173,6 +207,44 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   watcher.start();
+}
+
+/** Ask where and what, create `<skills dir>/<name>/SKILL.md` from a template, and open it. */
+async function newSkill(tree: SkillsTreeProvider): Promise<void> {
+  const locations = [
+    ...(vscode.workspace.workspaceFolders ?? []).map((f) => ({
+      label: `$(repo) Project: ${f.name}`,
+      description: 'shared through the repo',
+      dir: path.join(f.uri.fsPath, '.claude', 'skills'),
+    })),
+    { label: '$(account) Personal', description: 'all your projects', dir: path.join(claudeHome(), 'skills') },
+  ];
+  const where = await vscode.window.showQuickPick(locations, { title: 'New skill: where?' });
+  if (!where) {
+    return;
+  }
+  const name = await vscode.window.showInputBox({
+    title: 'New skill: name',
+    prompt: `Lowercase letters, digits and hyphens. Invoked as /<name>. Created in ${where.dir}`,
+    validateInput: (v) => (SKILL_NAME_RE.test(v) ? undefined : 'Use lowercase letters, digits and hyphens (max 64).'),
+  });
+  if (!name) {
+    return;
+  }
+  const description = await vscode.window.showInputBox({
+    title: 'New skill: description',
+    prompt: 'What it does and when Claude should use it (Claude decides from this text).',
+  });
+  if (description === undefined) {
+    return;
+  }
+  try {
+    const file = createSkill(where.dir, name, description || `TODO: describe when to use ${name}`);
+    tree.rescan();
+    await vscode.window.showTextDocument(vscode.Uri.file(file));
+  } catch (e) {
+    void vscode.window.showErrorMessage(`Could not create the skill: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 export function deactivate(): void {}

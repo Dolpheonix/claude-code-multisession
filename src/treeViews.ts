@@ -24,7 +24,7 @@ const PERIODIC_REFRESH_MS = 30_000;
  * Active transcripts are appended to constantly; re-rendering the whole tree on every line
  * disposes each item's command registration while the user is clicking it, so clicks get lost.
  */
-abstract class GatedTreeProvider<T> implements vscode.TreeDataProvider<T>, vscode.Disposable {
+export abstract class GatedTreeProvider<T> implements vscode.TreeDataProvider<T>, vscode.Disposable {
   private readonly _onDidChange = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this._onDidChange.event;
   private readonly disposables: vscode.Disposable[] = [this._onDidChange];
@@ -291,7 +291,7 @@ function activityIcon(active: boolean): vscode.ThemeIcon {
     : new vscode.ThemeIcon('circle-outline');
 }
 
-function timeAgo(ts: number): string {
+export function timeAgo(ts: number): string {
   const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
   if (s < 60) {
     return `${s}s ago`;

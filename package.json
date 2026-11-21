@@ -17,7 +17,10 @@
       { "command": "claudeMultisession.openInClaude", "title": "Open in Claude Code", "category": "Claude Multi-Session", "icon": "$(comment-discussion)" },
       { "command": "claudeMultisession.openTranscript", "title": "Open Transcript", "category": "Claude Multi-Session", "icon": "$(file-text)" },
       { "command": "claudeMultisession.installPermissionHook", "title": "Install Permission Hooks", "category": "Claude Multi-Session" },
-      { "command": "claudeMultisession.uninstallPermissionHook", "title": "Uninstall Permission Hooks", "category": "Claude Multi-Session" }
+      { "command": "claudeMultisession.uninstallPermissionHook", "title": "Uninstall Permission Hooks", "category": "Claude Multi-Session" },
+      { "command": "claudeMultisession.newSkill", "title": "New Skill", "category": "Claude Multi-Session", "icon": "$(add)" },
+      { "command": "claudeMultisession.refreshSkills", "title": "Rescan Skills", "category": "Claude Multi-Session", "icon": "$(refresh)" },
+      { "command": "claudeMultisession.revealSkill", "title": "Reveal in File Explorer", "category": "Claude Multi-Session" }
     ],
     "viewsContainers": {
       "activitybar": [
@@ -27,23 +30,28 @@
     "views": {
       "claudeMultisession": [
         { "id": "claudeMultisession.sessions", "name": "Sessions" },
-        { "id": "claudeMultisession.conflicts", "name": "Conflicts" }
+        { "id": "claudeMultisession.conflicts", "name": "Conflicts" },
+        { "id": "claudeMultisession.skills", "name": "Skills" }
       ]
     },
     "menus": {
       "view/title": [
         { "command": "claudeMultisession.openGraph", "when": "view == claudeMultisession.sessions", "group": "navigation" },
-        { "command": "claudeMultisession.refresh", "when": "view == claudeMultisession.sessions", "group": "navigation" }
+        { "command": "claudeMultisession.refresh", "when": "view == claudeMultisession.sessions", "group": "navigation" },
+        { "command": "claudeMultisession.newSkill", "when": "view == claudeMultisession.skills", "group": "navigation" },
+        { "command": "claudeMultisession.refreshSkills", "when": "view == claudeMultisession.skills", "group": "navigation" }
       ],
       "view/item/context": [
         { "command": "claudeMultisession.openInClaude", "when": "view == claudeMultisession.sessions && viewItem == session.workspace", "group": "inline" },
         { "command": "claudeMultisession.openInClaude", "when": "view == claudeMultisession.sessions && viewItem == session.workspace", "group": "navigation@1" },
-        { "command": "claudeMultisession.openTranscript", "when": "view == claudeMultisession.sessions && viewItem =~ /^session/", "group": "navigation@2" }
+        { "command": "claudeMultisession.openTranscript", "when": "view == claudeMultisession.sessions && viewItem =~ /^session/", "group": "navigation@2" },
+        { "command": "claudeMultisession.revealSkill", "when": "view == claudeMultisession.skills && viewItem =~ /^skill/", "group": "navigation@1" }
       ],
       "commandPalette": [
         { "command": "claudeMultisession.openSession", "when": "false" },
         { "command": "claudeMultisession.openInClaude", "when": "false" },
-        { "command": "claudeMultisession.openTranscript", "when": "false" }
+        { "command": "claudeMultisession.openTranscript", "when": "false" },
+        { "command": "claudeMultisession.revealSkill", "when": "false" }
       ]
     },
     "configuration": {

@@ -29,6 +29,15 @@ export interface Session {
   lastResultByTool: Map<string, number>;
   lastResultTs: number;
   lastPromptTs: number;
+  /** Skills / slash commands used: name -> count, last use, and whether Claude invoked it via the Skill tool. */
+  skills: Map<string, SkillUse>;
+}
+
+export interface SkillUse {
+  count: number;
+  lastTs: number;
+  /** Seen as a `Skill` tool call (so it is a real skill, not a built-in command like /clear). */
+  viaTool: boolean;
 }
 
 export interface PermissionRequestInfo {
@@ -187,6 +196,14 @@ export class SessionStore {
         case 'prompt':
           s.lastPromptTs = Math.max(s.lastPromptTs, ev.timestamp);
           break;
+        case 'skill': {
+          const u = s.skills.get(ev.name) ?? { count: 0, lastTs: 0, viaTool: false };
+          u.count++;
+          u.viaTool ||= ev.via === 'tool';
+          u.lastTs = Math.max(u.lastTs, ev.timestamp);
+          s.skills.set(ev.name, u);
+          break;
+        }
       }
     }
     this.fireChanged();
@@ -270,6 +287,7 @@ export class SessionStore {
         lastResultByTool: new Map(),
         lastResultTs: 0,
         lastPromptTs: 0,
+        skills: new Map(),
       };
       this.sessions.set(id, s);
     }

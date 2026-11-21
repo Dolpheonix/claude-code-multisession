@@ -24,7 +24,12 @@ export type TranscriptEvent =
   /** A tool call finished: ran after approval, failed, or was denied. */
   | { kind: 'toolResult'; sessionId: string; toolUseId: string; timestamp: number }
   /** The user sent a message in the main conversation. */
-  | { kind: 'prompt'; sessionId: string; timestamp: number };
+  | { kind: 'prompt'; sessionId: string; timestamp: number }
+  /**
+   * A skill or custom command was used: the `Skill` tool (Claude invoked it) or a slash command
+   * the user typed (`<command-name>/x</command-name>`; built-in commands like /clear appear too).
+   */
+  | { kind: 'skill'; sessionId: string; name: string; via: 'tool' | 'command'; timestamp: number };
 
 const EDIT_TOOLS: Record<string, string> = {
   Edit: 'file_path',
@@ -88,6 +93,9 @@ function toolUseEvents(block: any, sessionId: string, cwd: string | undefined, t
   if (typeof block.id === 'string') {
     events.push({ kind: 'toolUse', sessionId, toolUseId: block.id, tool: block.name });
   }
+  if (block.name === 'Skill' && typeof block.input?.skill === 'string' && block.input.skill) {
+    events.push({ kind: 'skill', sessionId, name: block.input.skill.replace(/^\//, ''), via: 'tool', timestamp: ts });
+  }
   const editKey = EDIT_TOOLS[block.name];
   const key = editKey ?? READ_TOOLS[block.name];
   const filePath = key ? block.input?.[key] : undefined;
@@ -113,5 +121,25 @@ function userEvents(rec: any, sessionId: string, ts: number): TranscriptEvent[] 
     }
   }
   const typed = typeof content === 'string' || (Array.isArray(content) && content.some((b: any) => b?.type === 'text'));
-  return typed && rec.isMeta !== true && rec.isSidechain !== true ? [{ kind: 'prompt', sessionId, timestamp: ts }] : [];
+  if (!typed || rec.isMeta === true || rec.isSidechain === true) {
+    return [];
+  }
+  const events: TranscriptEvent[] = [{ kind: 'prompt', sessionId, timestamp: ts }];
+  const command = SLASH_COMMAND_RE.exec(messageText(content));
+  if (command) {
+    events.push({ kind: 'skill', sessionId, name: command[1], via: 'command', timestamp: ts });
+  }
+  return events;
+}
+
+const SLASH_COMMAND_RE = /<command-name>\/?([^<\s]+)<\/command-name>/;
+
+function messageText(content: any): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+  return content
+    .filter((b: any) => b?.type === 'text' && typeof b.text === 'string')
+    .map((b: any) => b.text)
+    .join('\n');
 }
