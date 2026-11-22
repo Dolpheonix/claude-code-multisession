@@ -8,7 +8,9 @@ import { installHook, isHookInstalled, PermissionEvents, uninstallHook } from '.
 import { clearRepoRootCache } from './repoRoot';
 import { PermissionRequestInfo, Session, SessionStore } from './sessionStore';
 import { TranscriptWatcher } from './transcriptWatcher';
-import { ConflictsTreeProvider, Node, SessionsTreeProvider } from './treeViews';
+import { ConflictsTreeProvider, Node, SessionsTreeProvider, worktreeCopies } from './treeViews';
+import { worktreeLabel } from './repoRoot';
+import { FileInfo } from './sessionStore';
 import { isInWorkspace, sessionLabel, visibleSessions } from './viewModel';
 import { WindowBridge } from './windowBridge';
 import { claudeHome, createSkill, installSkillFolder, SKILL_NAME_RE, skillFolderDiffers } from './skills';
@@ -158,6 +160,7 @@ export function activate(context: vscode.ExtensionContext): void {
     ...skillWatchers,
     { dispose: () => clearTimeout(rescanTimer) },
     vscode.commands.registerCommand('claudeMultisession.refreshSkills', () => skillsTree.rescan()),
+    vscode.commands.registerCommand('claudeMultisession.compareAcrossWorktrees', (f?: FileInfo) => compareAcrossWorktrees(f)),
     vscode.commands.registerCommand('claudeMultisession.newSkill', () => newSkill(skillsTree)),
     vscode.commands.registerCommand('claudeMultisession.revealSkill', (node?: SkillNode) => {
       if (node?.type === 'skill') {
@@ -250,6 +253,44 @@ export function activate(context: vscode.ExtensionContext): void {
 
   watcher.start();
   archive.start();
+}
+
+/**
+ * Opens VS Code's diff editor on two worktrees' copies of a shared file (the working-tree files as
+ * they are now). With more than two copies, asks which two.
+ */
+async function compareAcrossWorktrees(f?: FileInfo): Promise<void> {
+  if (!f) {
+    return;
+  }
+  const copies = worktreeCopies(f)
+    .filter((p) => fs.existsSync(p))
+    .map((p) => ({ label: worktreeLabel(p) ?? path.dirname(p), description: p, path: p }));
+  if (copies.length < 2) {
+    void vscode.window.showInformationMessage(`${path.basename(f.displayPath)} exists in fewer than two worktrees now.`);
+    return;
+  }
+  let [left, right] = copies;
+  if (copies.length > 2) {
+    const a = await vscode.window.showQuickPick(copies, { title: 'Compare: left side' });
+    if (!a) {
+      return;
+    }
+    const b = await vscode.window.showQuickPick(
+      copies.filter((c) => c !== a),
+      { title: `Compare ${a.label} with` },
+    );
+    if (!b) {
+      return;
+    }
+    [left, right] = [a, b];
+  }
+  await vscode.commands.executeCommand(
+    'vscode.diff',
+    vscode.Uri.file(left.path),
+    vscode.Uri.file(right.path),
+    `${path.basename(f.displayPath)} (${left.label} ↔ ${right.label})`,
+  );
 }
 
 /**

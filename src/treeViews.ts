@@ -1,6 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { conflictLevel, FileInfo, fileKey, Session, SessionStore } from './sessionStore';
+import { worktreeLabel } from './repoRoot';
+import { conflictLevel, FileInfo, fileKey, PermissionRequestInfo, Session, SessionStore } from './sessionStore';
 import {
   includedSessions,
   isActive,
@@ -117,7 +118,7 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
           type: 'file',
           session: node.session,
           key,
-          display: f?.displayPath ?? key,
+          display: t.path, // this session's copy (its own worktree)
           reads: t.reads,
           edits: t.edits,
           shared: (f?.touches.size ?? 0) > 1,
@@ -208,20 +209,7 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
     const wrap = knowledge === 'missing' ? ' · ⚑ not wrapped up' : '';
     const archived = this.store.archived.has(s.id) ? ' · archived' : ''; // only visible with showArchived
     item.description = `${folder}${status} · ${s.files.size} files${wrap}${archived} · ${timeAgo(s.lastTs)}`;
-    const md = new vscode.MarkdownString(`**${sessionLabel(s)}**\n\n- id: \`${s.id}\`\n- cwd: \`${s.cwd ?? '?'}\``);
-    if (waiting) {
-      md.appendMarkdown(`\n\n**🔔 Waiting for permission** (${timeAgo(waiting.since)}): `);
-      md.appendText(waiting.summary);
-    }
-    if (knowledge === 'missing') {
-      md.appendMarkdown(
-        `\n\n**⚑ Not wrapped up**: edited files but no knowledge file (${knowledgePatterns().join(', ')}). ` +
-          'Right-click → **Wrap Up Session** before merging.',
-      );
-    } else if (knowledge === 'captured') {
-      md.appendMarkdown('\n\n📘 Updated a knowledge file.');
-    }
-    item.tooltip = md;
+    item.tooltip = sessionTooltip(s, waiting, knowledge);
     item.iconPath = waiting ? new vscode.ThemeIcon('bell-dot', new vscode.ThemeColor('charts.yellow')) : activityIcon(active);
     // Sessions of this window's workspace can be resumed in Claude Code; others open the raw transcript.
     const resumable = isInWorkspace(s, true);
@@ -258,7 +246,7 @@ export class SessionsTreeProvider extends GatedTreeProvider<Node> {
 export class ConflictsTreeProvider extends GatedTreeProvider<FileInfo> {
   protected signature(): string {
     return this.getChildren()
-      .map((f) => [f.key, conflictLevel(f), ...[...f.touches].map(([sid, t]) => `${sid}:${t.edits > 0}`)].join('\u0001'))
+      .map((f) => [f.key, conflictLevel(f), worktreeCopies(f).length, ...[...f.touches].map(([sid, t]) => `${sid}:${t.edits > 0}`)].join('\u0001'))
       .join('\u0002');
   }
 
@@ -282,10 +270,16 @@ export class ConflictsTreeProvider extends GatedTreeProvider<FileInfo> {
     const level = conflictLevel(f);
     const item = new vscode.TreeItem(path.basename(f.displayPath));
     item.id = `c:${f.key}`;
+    const copies = worktreeCopies(f);
     const names = [...f.touches.entries()].map(([sid, t]) => {
       const s = this.store.sessions.get(sid);
-      return `${s ? sessionLabel(s) : sid.slice(0, 8)} (${t.edits ? 'edit' : 'read'})`;
+      // Name the branch/worktree only when the sessions worked in different copies.
+      const where = copies.length > 1 ? ` — ${worktreeLabel(t.path) ?? t.path}` : '';
+      return `${s ? sessionLabel(s) : sid.slice(0, 8)} (${t.edits ? 'edit' : 'read'})${where}`;
     });
+    if (copies.length > 1) {
+      item.contextValue = 'conflict.worktrees'; // enables Compare Across Worktrees
+    }
     const firstCwd = this.store.sessions.get([...f.touches.keys()][0])?.cwd;
     const dir = repoRelativeDir(f.displayPath, firstCwd);
     const knowledge = isKnowledgeFile(f.key);
@@ -300,6 +294,41 @@ export class ConflictsTreeProvider extends GatedTreeProvider<FileInfo> {
     item.command = { command: 'vscode.open', title: 'Open', arguments: [vscode.Uri.file(f.displayPath)] };
     return item;
   }
+}
+
+function sessionTooltip(
+  s: Session,
+  waiting: PermissionRequestInfo | undefined,
+  knowledge: ReturnType<typeof knowledgeStatus>,
+): vscode.MarkdownString {
+  const md = new vscode.MarkdownString(`**${sessionLabel(s)}**\n\n- id: \`${s.id}\`\n- cwd: \`${s.cwd ?? '?'}\``);
+  // The worktree's branch right now (Claude Code doesn't record branch switches reliably).
+  const branch = s.cwd ? worktreeLabel(path.join(s.cwd, '_')) : undefined;
+  if (branch) {
+    md.appendMarkdown(`\n- branch: \`${branch}\` (now)`);
+  }
+  if (waiting) {
+    md.appendMarkdown(`\n\n**🔔 Waiting for permission** (${timeAgo(waiting.since)}): `);
+    md.appendText(waiting.summary);
+  }
+  if (knowledge === 'missing') {
+    md.appendMarkdown(
+      `\n\n**⚑ Not wrapped up**: edited files but no knowledge file (${knowledgePatterns().join(', ')}). ` +
+        'Right-click → **Wrap Up Session** before merging.',
+    );
+  } else if (knowledge === 'captured') {
+    md.appendMarkdown('\n\n📘 Updated a knowledge file.');
+  }
+  return md;
+}
+
+/** Distinct copies of a file among its touches: one per git worktree the sessions worked in. */
+export function worktreeCopies(f: FileInfo): string[] {
+  const byKey = new Map<string, string>();
+  for (const t of f.touches.values()) {
+    byKey.set(fileKey(t.path), t.path);
+  }
+  return [...byKey.values()];
 }
 
 /** Book icon for knowledge files (CLAUDE.md, …), warning for other shared files, else the file icon. */

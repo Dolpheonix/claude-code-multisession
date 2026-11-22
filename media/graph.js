@@ -228,7 +228,7 @@
     const elements = [
       ...sessions.map((x) => ({
         group: 'nodes',
-        data: { id: 's:' + x.id, sid: x.id, label: sessionText(x), title: x.label, color: colorFor(x.id), cwd: x.cwd, waiting: x.waiting },
+        data: { id: 's:' + x.id, sid: x.id, label: sessionText(x), title: x.label, color: colorFor(x.id), cwd: x.cwd, branch: x.branch, waiting: x.waiting },
         classes: 'session ' + (x.active ? 'active' : 'idle') + (x.waiting ? ' waiting' : ''),
       })),
       ...files.map((f) => ({
@@ -360,7 +360,12 @@
 
     const d = node.data();
     tip.textContent = node.hasClass('session')
-      ? [d.title, `cwd: ${d.cwd ?? '?'}`, ...(d.waiting ? [`🔔 waiting for permission: ${d.waiting}`] : [])].join('\n')
+      ? [
+          d.title,
+          `cwd: ${d.cwd ?? '?'}`,
+          ...(d.branch ? [`branch: ${d.branch}`] : []),
+          ...(d.waiting ? [`🔔 waiting for permission: ${d.waiting}`] : []),
+        ].join('\n')
       : d.path;
     const p = node.renderedPosition();
     tip.style.left = `${p.x + 12}px`;

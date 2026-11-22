@@ -106,7 +106,7 @@ Claude Code 자체의 임시 폴더(`<tmp>/claude/…`, 세션별 `scratchpad/` 
 | [src/graphPanel.ts](src/graphPanel.ts) + [media/graph.js](media/graph.js) | Cytoscape 그래프 웹뷰 |
 | [src/claudeCode.ts](src/claudeCode.ts) | Claude Code 확장에서 세션 열기 |
 | [src/claudeArchive.ts](src/claudeArchive.ts) | Claude Code에서 보관한 세션 목록 읽기 |
-| [src/repoRoot.ts](src/repoRoot.ts) | 표시용 경로를 위해 파일이 속한 git 저장소 루트 찾기(캐시) |
+| [src/repoRoot.ts](src/repoRoot.ts) | 파일이 속한 git 저장소 루트와 worktree 관계, 현재 브랜치 찾기(캐시) |
 | [src/permissions.ts](src/permissions.ts) | 허가 요청 hook: 로컬 수신기, 공용 이벤트 파일, hook 설치/제거 |
 | [src/windowBridge.ts](src/windowBridge.ts) | 다른 VS Code 창에 세션 열기 요청 |
 | [src/skills.ts](src/skills.ts) + [src/skillsTree.ts](src/skillsTree.ts) | 디스크의 스킬/커스텀 명령 찾기, 켜짐/꺼짐 상태, `/wrap-up` 설치. 사용 횟수가 붙은 Skills 뷰 |
@@ -118,11 +118,12 @@ Claude Code 자체의 임시 폴더(`<tmp>/claude/…`, 세션별 `scratchpad/` 
 - **Sessions 뷰**: 세션을 워크스페이스(세션을 시작한 폴더)별로 묶고, 세션마다 건드린 파일을 보여 줍니다(✎ 수정, 👁 읽기). 이 창에 열린 폴더가 먼저 나옵니다. `claudeMultisession.groupByWorkspace`로 묶기를 끌 수 있습니다. 허가 요청을 기다리는 세션에는 🔔([허가 요청](#허가-요청)), 아직 지식을 정리하지 않은 세션에는 ⚑([프로젝트 지식 이어가기](#프로젝트-지식-이어가기))가 붙습니다.
   - 세션마다 체크박스가 있습니다. 체크를 풀면 목록에는 남지만 **그래프와 충돌 검사에서 빠집니다.** 남은 브랜치들을 머지할 때의 영향을 볼 때, 이미 끝난 작업을 빼는 용도입니다. 워크스페이스 그룹의 체크박스는 그 안의 세션 전체를 켜고 끕니다. 뺀 세션 목록은 재시작해도 유지됩니다.
 - **보관한 세션 숨기기**: Claude Code에서 보관(Archive session)한 세션은 Sessions 뷰, 그래프, 충돌, 스킬 사용 횟수에서 모두 빠집니다. `claudeMultisession.showArchived`를 켜면 다시 보이고 `archived` 표시가 붙습니다. Claude Code가 이 상태를 공식 API로 내놓지 않아서 내부 저장소를 읽습니다([Claude Code 연동](#claude-code-연동) 참고).
-- **Conflicts 뷰**: 포함된 세션 2개 이상이 건드린 파일. 활동 표시줄 아이콘에 개수 배지가 붙습니다.
+- **Conflicts 뷰**: 포함된 세션 2개 이상이 건드린 파일. 활동 표시줄 아이콘에 개수 배지가 붙습니다. 세션들이 서로 다른 git worktree에서 작업했으면 툴팁에 세션마다 어느 브랜치(worktree)에서 건드렸는지 나오고, **Compare Across Worktrees**(인라인 버튼, 오른쪽 클릭)로 두 worktree의 파일을 diff 화면에서 비교할 수 있습니다. 비교 대상은 각 worktree에 지금 있는 파일이며, worktree가 셋 이상이면 비교할 둘을 고릅니다.
+- **git worktree 지원**: 같은 저장소의 worktree들(`git worktree add`로 만든 폴더, Claude Code의 `.claude/worktrees/<이름>`)에 있는 같은 파일은 하나의 파일로 묶습니다. 그래서 브랜치마다 worktree를 따로 쓰는 세션끼리도 충돌이 잡힙니다. worktree의 `.git` 파일(`gitdir:`)과 그 안의 `commondir`을 읽어 원래 저장소를 찾으며, git 명령은 실행하지 않습니다. 서브모듈은 별도 저장소로 취급합니다. 세션 툴팁(트리, 그래프)에는 cwd에 지금 체크아웃된 브랜치가 나옵니다.
 - **Skills 뷰**: 디스크에 있는 스킬과 커스텀 명령, 사용 횟수([스킬](#스킬) 참고)
 - **그래프**: 왼쪽에서 오른쪽으로 그립니다. 세션은 왼쪽 열, 파일은 오른쪽 열에 놓이고, 각 세션의 파일은 그 세션 옆에 모입니다. 여러 세션이 함께 건드린 파일은 해당 세션 그룹들 사이에 놓입니다.
   - 세션 이름: 제목, 그 뒤에 cwd 폴더 이름
-  - 파일 이름: 그 파일이 속한 git 저장소 루트부터의 경로입니다(예: `my-repo/src/a.ts`). 루트는 `.git` 폴더나 파일이 있는 가장 가까운 상위 폴더라서 worktree도 포함됩니다. 어느 창에서 보든 같게 나옵니다. 저장소 밖의 파일은 세션 cwd부터의 경로로 나옵니다. 긴 경로는 왼쪽을 줄여 표시합니다. 트리에서도 파일 이름 옆에 같은 폴더 경로가 나옵니다. 저장소 루트는 캐시하므로, `git init` 뒤에는 **Rescan Transcripts**로 캐시를 비웁니다.
+  - 파일 이름: 그 파일이 속한 git 저장소 루트부터의 경로입니다(예: `my-repo/src/a.ts`). worktree 안의 파일도 원래 저장소 이름으로 나오므로, 어느 worktree, 어느 창에서 보든 같게 나옵니다. 저장소 밖의 파일은 세션 cwd부터의 경로로 나옵니다. 긴 경로는 왼쪽을 줄여 표시합니다. 트리에서도 파일 이름 옆에 같은 폴더 경로가 나옵니다. 저장소 루트는 캐시하므로, `git init` 뒤에는 **Rescan Transcripts**로 캐시를 비웁니다.
   - 빨간 파일: 세션 2개 이상이 수정
   - 주황 파일: 한 세션이 수정하고 다른 세션이 읽음
   - **Conflicts** 체크박스로 빨강/주황 강조를 끌 수 있음
@@ -246,6 +247,6 @@ VS Code에서 **F5**를 눌러 Extension Development Host를 띄운 뒤, 활동 
 - 기존 hook 수신기에 hook 더 붙이기(`PreToolUse` / `PostToolUse`): 공식 인터페이스로 실시간 파일 이벤트를 받고, 다른 세션이 같은 파일을 고치고 있으면 경고
 - Skills 뷰에서 스킬 켜고 끄기(`skillOverrides` / `enabledPlugins`에 기록)
 - 워크스페이스 폴더 하위 폴더에 있는 프로젝트 스킬도 표시(Claude가 그 폴더를 건드리면 로드됨)
-- worktree를 고려한 경로 매핑: 여러 git worktree에서 저장소 기준으로 같은 파일을 같은 파일로 인식
+- 대상 브랜치 기준 diff: 지금은 worktree에 있는 파일끼리 비교하므로, 커밋 기준(대상 브랜치와의 차이) 비교는 git 명령이 필요함
 - `Edit.old_string`으로 줄 범위가 겹치는지 감지
 - 타임라인 뷰

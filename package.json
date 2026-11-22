@@ -17,6 +17,7 @@
       { "command": "claudeMultisession.openInClaude", "title": "Open in Claude Code", "category": "Claude Multi-Session", "icon": "$(comment-discussion)" },
       { "command": "claudeMultisession.openTranscript", "title": "Open Transcript", "category": "Claude Multi-Session", "icon": "$(file-text)" },
       { "command": "claudeMultisession.wrapUp", "title": "Wrap Up Session", "category": "Claude Multi-Session", "icon": "$(book)" },
+      { "command": "claudeMultisession.compareAcrossWorktrees", "title": "Compare Across Worktrees", "category": "Claude Multi-Session", "icon": "$(diff)" },
       { "command": "claudeMultisession.installWrapUpSkill", "title": "Install /wrap-up Skill Globally", "category": "Claude Multi-Session" },
       { "command": "claudeMultisession.installPermissionHook", "title": "Install Permission Hooks", "category": "Claude Multi-Session" },
       { "command": "claudeMultisession.uninstallPermissionHook", "title": "Uninstall Permission Hooks", "category": "Claude Multi-Session" },
@@ -48,14 +49,17 @@
         { "command": "claudeMultisession.openInClaude", "when": "view == claudeMultisession.sessions && viewItem == session.workspace", "group": "navigation@1" },
         { "command": "claudeMultisession.openTranscript", "when": "view == claudeMultisession.sessions && viewItem =~ /^session/", "group": "navigation@2" },
         { "command": "claudeMultisession.wrapUp", "when": "view == claudeMultisession.sessions && viewItem =~ /^session/", "group": "navigation@3" },
-        { "command": "claudeMultisession.revealSkill", "when": "view == claudeMultisession.skills && viewItem =~ /^skill/", "group": "navigation@1" }
+        { "command": "claudeMultisession.revealSkill", "when": "view == claudeMultisession.skills && viewItem =~ /^skill/", "group": "navigation@1" },
+        { "command": "claudeMultisession.compareAcrossWorktrees", "when": "view == claudeMultisession.conflicts && viewItem == conflict.worktrees", "group": "inline" },
+        { "command": "claudeMultisession.compareAcrossWorktrees", "when": "view == claudeMultisession.conflicts && viewItem == conflict.worktrees", "group": "navigation@1" }
       ],
       "commandPalette": [
         { "command": "claudeMultisession.openSession", "when": "false" },
         { "command": "claudeMultisession.openInClaude", "when": "false" },
         { "command": "claudeMultisession.openTranscript", "when": "false" },
         { "command": "claudeMultisession.wrapUp", "when": "false" },
-        { "command": "claudeMultisession.revealSkill", "when": "false" }
+        { "command": "claudeMultisession.revealSkill", "when": "false" },
+        { "command": "claudeMultisession.compareAcrossWorktrees", "when": "false" }
       ]
     },
     "configuration": {

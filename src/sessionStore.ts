@@ -2,11 +2,14 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { TranscriptEvent } from './parser';
+import { findRepoIdentity } from './repoRoot';
 
 export interface FileTouch {
   reads: number;
   edits: number;
   lastTs: number;
+  /** The file as this session touched it (absolute, native). Differs between sessions in different worktrees. */
+  path: string;
 }
 
 export interface Session {
@@ -92,6 +95,24 @@ export function fileKey(p: string, cwd?: string): string {
     abs = abs.toLowerCase();
   }
   return abs;
+}
+
+/** Absolute native path (not lower-cased, unlike {@link fileKey}), for opening and diffing. */
+export function absolutePath(p: string, cwd?: string): string {
+  p = toNativePath(p);
+  return path.normalize(path.isAbsolute(p) ? p : path.resolve(cwd === undefined ? '' : toNativePath(cwd), p));
+}
+
+/**
+ * File key that ignores which git worktree the file is in: a path inside a linked worktree is
+ * mapped to the same relative path in the repository's main working tree.
+ */
+export function repoFileKey(absPath: string): string {
+  const id = findRepoIdentity(path.dirname(absPath));
+  if (id?.isWorktree) {
+    return fileKey(path.join(id.mainRoot, path.relative(id.root, absPath)));
+  }
+  return fileKey(absPath);
 }
 
 /** On Windows, turn MSYS/Git-Bash style paths (`/c/Users/...`) into native ones (`c:\Users\...`). */
@@ -235,11 +256,14 @@ export class SessionStore {
 
   private applyFile(s: Session, ev: Extract<TranscriptEvent, { kind: 'file' }>): void {
     this.touchTime(s, ev.timestamp);
-    const key = fileKey(ev.filePath, ev.cwd ?? s.cwd);
-    if (isClaudeTempFile(key)) {
+    const abs = absolutePath(ev.filePath, ev.cwd ?? s.cwd);
+    if (isClaudeTempFile(fileKey(abs))) {
       return;
     }
-    const st = s.files.get(key) ?? { reads: 0, edits: 0, lastTs: 0 };
+    // Keyed by the path in the main working tree, so the same file edited in two worktrees is one file.
+    const key = repoFileKey(abs);
+    const st = s.files.get(key) ?? { reads: 0, edits: 0, lastTs: 0, path: abs };
+    st.path = abs;
     if (ev.access === 'edit') {
       st.edits++;
     } else {

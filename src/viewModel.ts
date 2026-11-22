@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { findRepoRoot } from './repoRoot';
+import { findRepoIdentity, worktreeLabel } from './repoRoot';
 import { conflictLevel, ConflictLevel, fileKey, Session, SessionStore, toNativePath } from './sessionStore';
 
 export interface GraphSession {
@@ -10,6 +10,8 @@ export interface GraphSession {
   active: boolean;
   /** Summary of the permission prompt the session is waiting on, if any. */
   waiting?: string;
+  /** Branch (and linked worktree folder) the session's cwd has checked out now. */
+  branch?: string;
   lastTs: number;
 }
 
@@ -121,11 +123,12 @@ export function repoRelativePath(filePath: string, cwd?: string): string {
   if (!path.isAbsolute(p) && cwd) {
     p = path.resolve(toNativePath(cwd), p);
   }
-  const rel = (base: string) => [path.basename(base) || base, ...path.relative(base, p).split(path.sep)].join('/');
+  const rel = (base: string, name = base) => [path.basename(name) || name, ...path.relative(base, p).split(path.sep)].join('/');
 
-  const repo = findRepoRoot(path.dirname(p));
+  // Named after the main working tree, so the same file reads the same in every worktree.
+  const repo = findRepoIdentity(path.dirname(p));
   if (repo) {
-    return rel(repo);
+    return rel(repo.root, repo.mainRoot);
   }
   if (cwd) {
     const base = toNativePath(cwd);
@@ -177,6 +180,7 @@ export function buildGraphState(store: SessionStore): GraphState {
       id: s.id,
       label: sessionLabel(s),
       cwd: s.cwd,
+      branch: s.cwd ? worktreeLabel(path.join(s.cwd, '_')) : undefined,
       active: isActive(s),
       waiting: store.waitingFor(s)?.summary,
       lastTs: s.lastTs,
