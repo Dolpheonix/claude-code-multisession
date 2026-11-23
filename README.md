@@ -98,7 +98,7 @@ Claude Code 자체의 임시 폴더(`<tmp>/claude/…`, 세션별 `scratchpad/` 
 
 | 파일 | 역할 |
 | --- | --- |
-| [src/parser.ts](src/parser.ts) | JSONL 한 줄 → 이벤트(세션 정보, 제목, 파일 접근, 도구 호출/결과, 사용자 메시지, 스킬 사용) |
+| [src/parser.ts](src/parser.ts) | JSONL 한 줄 → 이벤트(세션 정보, 제목(자동/바꾼 이름), 파일 접근, 도구 호출/결과, 사용자 메시지, 스킬 사용) |
 | [src/transcriptWatcher.ts](src/transcriptWatcher.ts) | 대화 기록 파일을 이어서 읽기 |
 | [src/sessionStore.ts](src/sessionStore.ts) | 세션 ↔ 파일 모델, 충돌 단계, 허가 요청 상태, 경로 정규화 |
 | [src/viewModel.ts](src/viewModel.ts) | 범위/기간/워크스페이스 필터, 지식 파일 상태, 그래프 웹뷰용 데이터 |
@@ -122,7 +122,7 @@ Claude Code 자체의 임시 폴더(`<tmp>/claude/…`, 세션별 `scratchpad/` 
 - **git worktree 지원**: 같은 저장소의 worktree들(`git worktree add`로 만든 폴더, Claude Code의 `.claude/worktrees/<이름>`)에 있는 같은 파일은 하나의 파일로 묶습니다. 그래서 브랜치마다 worktree를 따로 쓰는 세션끼리도 충돌이 잡힙니다. worktree의 `.git` 파일(`gitdir:`)과 그 안의 `commondir`을 읽어 원래 저장소를 찾으며, git 명령은 실행하지 않습니다. 서브모듈은 별도 저장소로 취급합니다. 세션 툴팁(트리, 그래프)에는 cwd에 지금 체크아웃된 브랜치가 나옵니다.
 - **Skills 뷰**: 디스크에 있는 스킬과 커스텀 명령, 사용 횟수([스킬](#스킬) 참고)
 - **그래프**: 왼쪽에서 오른쪽으로 그립니다. 세션은 왼쪽 열, 파일은 오른쪽 열에 놓이고, 각 세션의 파일은 그 세션 옆에 모입니다. 여러 세션이 함께 건드린 파일은 해당 세션 그룹들 사이에 놓입니다.
-  - 세션 이름: 제목, 그 뒤에 cwd 폴더 이름
+  - 세션 이름: 제목, 그 뒤에 cwd 폴더 이름. Claude Code에서 세션 이름을 바꿨으면 바꾼 이름(대화 기록의 `custom-title`)이, 아니면 Claude Code가 자동으로 붙인 제목(`ai-title`)이 나옵니다. Sessions 뷰도 같습니다.
   - 파일 이름: 그 파일이 속한 git 저장소 루트부터의 경로입니다(예: `my-repo/src/a.ts`). worktree 안의 파일도 원래 저장소 이름으로 나오므로, 어느 worktree, 어느 창에서 보든 같게 나옵니다. 저장소 밖의 파일은 세션 cwd부터의 경로로 나옵니다. 긴 경로는 왼쪽을 줄여 표시합니다. 트리에서도 파일 이름 옆에 같은 폴더 경로가 나옵니다. 저장소 루트는 캐시하므로, `git init` 뒤에는 **Rescan Transcripts**로 캐시를 비웁니다.
   - 빨간 파일: 세션 2개 이상이 수정
   - 주황 파일: 한 세션이 수정하고 다른 세션이 읽음
