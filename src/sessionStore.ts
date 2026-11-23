@@ -14,7 +14,11 @@ export interface FileTouch {
 
 export interface Session {
   id: string;
+  /** Name to show: the user's rename if any, else Claude Code's generated title. */
   title?: string;
+  aiTitle?: string;
+  /** Set when the session was renamed in Claude Code. */
+  customTitle?: string;
   /** Directory the session started in (native path). */
   cwd?: string;
   /** Whether `cwd` came from the main transcript (vs. a subagent transcript read first). */
@@ -206,7 +210,12 @@ export class SessionStore {
 
       switch (ev.kind) {
         case 'title':
-          s.title = ev.title;
+          if (ev.source === 'custom') {
+            s.customTitle = ev.title || undefined;
+          } else {
+            s.aiTitle = ev.title;
+          }
+          s.title = s.customTitle ?? s.aiTitle;
           break;
         case 'meta':
           this.applyMeta(s, ev, isMain);
